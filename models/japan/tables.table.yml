@@ -4,21 +4,22 @@ title: 産業連関表の一覧
 description: |-
   収録している表の一覧です。1 行が 1 表です。ほかのテーブルは table_id でこの表を指します。
 
-  - kind が national は各年の産業連関表、linked は過去 3 時点を同じ部門分類にそろえた接続産業連関表です
+  - kind が national は 5 年ごとの産業連関表、linked は過去 3 時点を同じ部門分類にそろえた接続産業連関表、extended は経済産業省が毎年作る延長産業連関表です
   - 接続表の古い 2 時点には名目と実質（最新時点の価格）の 2 つの表があります
+  - 延長表には名目と実質（基準年の価格）の 2 つの表があります。同じ基準年の延長表は部門分類が同じです
   - 基本分類の表は行と列の部門が違うので、sector_count が NULL で、係数・逆行列は計算していません
 primary_key: [table_id]
 fields:
   - name: table_id
     title: 表 ID
-    description: national_2020_37（2020 年表の 37 部門）や linked2015_2005_37_real（平成17-23-27年接続表の 2005 年、実質）の形
+    description: national_2020_37（2020 年表の 37 部門）、linked2015_2005_37_real（平成17-23-27年接続表の 2005 年、実質）、extended_2022_52（2022 年の延長表の 52 部門）の形
   - name: kind
     title: 表の種類
-    description: national（産業連関表）、linked（接続産業連関表）
+    description: national（産業連関表）、linked（接続産業連関表）、extended（延長産業連関表）
     annotations: { queria: { semantic: { role: dimension } } }
   - name: series
-    title: 接続表の時点
-    description: 接続表が対象にする 3 時点（2005-2011-2015 など）。全国表は NULL
+    title: 接続表の時点・延長表の基準年
+    description: 接続表は対象にする 3 時点（2005-2011-2015 など）、延長表は基準にした産業連関表の年（2015 など）。産業連関表は NULL
     annotations: { queria: { semantic: { role: dimension } } }
   - name: year
     title: 対象年

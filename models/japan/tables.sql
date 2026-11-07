@@ -1,4 +1,4 @@
-{# 産業連関表の一覧。1 行が 1 表。pipelines/japan.py が data/japan/tables.csv に書き出す。 #}
+{# 産業連関表・接続産業連関表・延長産業連関表の一覧。1 行が 1 表。pipelines/japan.py が data/japan/tables.csv に書き出す。 #}
 
 select
     table_id,
@@ -11,7 +11,11 @@ select
     classification,
     cast(nullif(sector_count, '') as integer) as sector_count,
     concat_ws(' ',
-        case kind when 'national' then year || '年 産業連関表' else series || '年 接続産業連関表 ' || year || '年' end,
+        case kind
+            when 'national' then year || '年 産業連関表'
+            when 'extended' then year || '年 延長産業連関表（' || series || '年基準）'
+            else series || '年 接続産業連関表 ' || year || '年'
+        end,
         case price when 'real' then '実質（' || real_base_year || '年価格）' end,
         classification,
         case price_basis when 'producer' then '生産者価格評価' else '購入者価格評価' end

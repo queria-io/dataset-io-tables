@@ -17,4 +17,6 @@ select table_id, code, c.value as row_total, r.value as col_total
 from output_col as c
 join output_row as r using (table_id, code)
 join {{ ref('tables') }} using (table_id)
+-- 延長表は粗付加価値の行と最終需要の列でコードが重なるので、内生部門に絞る
+join {{ ref('sectors') }} as s on s.table_id = c.table_id and s.side = 'row' and s.code = c.code and s.sector_type = 'intermediate'
 where price_basis = 'producer' and sector_count is not null and abs(c.value - r.value) > 1

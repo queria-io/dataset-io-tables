@@ -1,10 +1,10 @@
 -- 逆行列 (open) と最終需要から国内生産額を計算し直すと、元の国内生産額に戻る。
 --   X = L ((I - M) D + (F - D))
 -- F は最終需要計 (輸出・調整項を含む)、D は輸入係数の分母に入れた国内最終需要
--- (2011 年作成の表からは国内最終需要計から調整項を除いたもの。pipelines/derive.py と同じ)。
+-- (2011 年作成の総務省の表からは国内最終需要計から調整項を除いたもの。pipelines/derive.py と同じ)。
 -- 公表値の丸め (2020 年表は 10 億円単位) があるので、国内生産額の 0.1% か 1,000 百万円までの差は許す
 with editions as (
-    select table_id, cast(split_part(coalesce(series, year::varchar), '-', -1) as integer) as edition
+    select table_id, kind, cast(split_part(coalesce(series, year::varchar), '-', -1) as integer) as edition
     from {{ ref('tables') }}
 ),
 
@@ -20,7 +20,7 @@ final_demand as (
 
 demand as (
     select f.table_id, f.code,
-        coalesce(f.domestic, 0) - case when e.edition >= 2011 then coalesce(f.adjustment, 0) else 0 end as domestic,
+        coalesce(f.domestic, 0) - case when e.edition >= 2011 and e.kind != 'extended' then coalesce(f.adjustment, 0) else 0 end as domestic,
         coalesce(f.total, 0) as total,
         m.import_coefficient
     from final_demand as f

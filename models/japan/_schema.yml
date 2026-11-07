@@ -11,7 +11,7 @@ models:
     - not_null
     - accepted_values:
         arguments:
-          values: [national, linked]
+          values: [national, linked, extended]
   - name: year
     data_tests: [not_null]
   - name: price
