@@ -1,0 +1,56 @@
+# この dataset.yml は fdl commit が読む（FDL の dataset.json を YAML で書いたもの）。
+# 表の説明は models/ の *.table.yml に書く。表と列の型・NULL・行数は fdl commit がカタログから埋める。
+# Queria だけの項目（テーマ・カバー・列の意味）は annotations.queria に書く。
+name: io_tables
+title: 産業連関表
+description: |-
+  日本の産業連関表（1995・2000・2005・2011・2015・2020 年）と接続産業連関表（1985 年〜2020 年）の取引基本表を、1 行が 1 セルの縦長のテーブルにしたデータセットです。投入係数・逆行列係数・部門ごとの生産誘発係数と粗付加価値誘発係数も計算して収録しています。
+
+  出典：総務省ほか「産業連関表」「接続産業連関表」。Queria が加工したものです。
+keywords:
+  - 産業連関表
+  - 産業連関分析
+  - 経済波及効果
+  - 取引基本表
+  - 投入係数
+  - 逆行列係数
+  - 生産誘発
+  - 接続産業連関表
+  - input-output table
+homepage: https://github.com/queria-io/dataset-io-tables
+language: ja
+
+licenses:
+  - JP-GOV-STD-2.0
+
+sources:
+  - title: 総務省 産業連関表
+    path: https://www.soumu.go.jp/toukei_toukatsu/data/io/index.htm
+  - title: e-Stat 産業連関表
+    path: https://www.e-stat.go.jp/stat-search/files?toukei=00200603
+
+contributors:
+  - title: 総務省
+    path: https://www.soumu.go.jp/
+    roles: [rightsHolder]
+
+spatial_coverage: [JP]
+update_frequency: irregular
+
+schemas:
+  - name: japan
+    title: 日本の産業連関表
+
+annotations:
+  queria:
+    themes: [economy]
+    cover: 🔁
+    ai_context:
+      instructions: |
+        経済波及効果（ある部門の需要が増えたとき各部門の生産がいくら増えるか）を計算するときに使う。
+        まず japan.tables で表を選ぶ（kind は national（全国表）か linked（接続表）、sector_count が部門数、
+        price_basis は producer（生産者価格評価）を使う）。部門のコードは表ごとに違うので、japan.sectors か
+        各テーブルの row_name・col_name で名前を確認してから絞る。
+        波及効果は leontief_inverse の open 列（[I-(I-M)A]^-1、輸入を考慮した型）と最終需要の増加額を
+        col_code で結合して row_code ごとに合計する。金額の単位はすべて百万円。
+        異なる年を比べるときは、同じ部門分類の接続表（kind = linked、同じ series）を使う。

@@ -1,0 +1,39 @@
+{# 表ごとの行部門と列部門。1 行が 1 表の 1 部門。pipelines/japan.py が data/japan/sectors.csv に書き出す。 #}
+
+with source as (
+    select
+        table_id,
+        side,
+        cast(position as integer) as position,
+        code,
+        name
+    from read_csv('data/japan/sectors.csv', header = true, all_varchar = true)
+),
+
+marks as (
+    select
+        table_id,
+        side,
+        min(position) filter (where name = '内生部門計') as endogenous_total,
+        min(position) filter (where name = '国内生産額') as output
+    from source
+    group by table_id, side
+)
+
+select
+    source.table_id,
+    source.side,
+    source.position,
+    source.code,
+    source.name,
+    case
+        when source.position < marks.endogenous_total then 'intermediate'
+        when source.position = marks.endogenous_total then 'intermediate_total'
+        when source.position = marks.output then 'output'
+        when source.position > marks.output then 'reference'
+        when source.side = 'col' then 'final_demand'
+        else 'value_added'
+    end as sector_type,
+    source.name like '%計' or source.name like '%合計' as is_total
+from source
+join marks using (table_id, side)

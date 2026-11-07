@@ -1,0 +1,26 @@
+schema: japan
+name: leontief_inverse
+title: 逆行列係数
+description: |-
+  列部門の最終需要が 1 単位増えたときに、行部門の生産が直接・間接に何単位増えるかを表す係数です。1 行が 1 表の行部門と列部門の組み合わせ 1 つです。
+
+  - open は [I-(I-M)A]^-1 型（輸入で賄われる分を除く）、closed は (I-A)^-1 型です。経済波及効果には通常 open を使います
+  - M は輸入係数（輸入計 ÷ (内生部門計 + 国内最終需要計)）です。2011 年に作成された表からは総務省の計算に合わせて国内最終需要計から調整項を除いています
+  - 公表されている逆行列係数表と、1995〜2015 年の表は小数点以下 6 桁まで一致します。2020 年表は出典の取引額が 10 億円単位に丸められているため、最大で 0.002 ほど違います
+  - 生産者価格評価の正方の表（sector_count がある表）だけです
+primary_key: [table_id, row_code, col_code]
+fields:
+  - name: table_id
+    title: 表 ID
+  - name: row_code
+    title: 行部門コード
+  - name: row_name
+    title: 行部門名
+  - name: col_code
+    title: 列部門コード
+  - name: col_name
+    title: 列部門名
+  - name: open
+    title: 逆行列係数（[I-(I-M)A]^-1 型）
+  - name: closed
+    title: 逆行列係数（(I-A)^-1 型）

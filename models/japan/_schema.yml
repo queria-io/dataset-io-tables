@@ -1,0 +1,72 @@
+version: 2
+
+models:
+- name: tables
+  access: public
+  columns:
+  - name: table_id
+    data_tests: [unique, not_null]
+  - name: kind
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values: [national, linked]
+  - name: year
+    data_tests: [not_null]
+  - name: price
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values: [nominal, real]
+  - name: price_basis
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values: [producer, purchaser]
+- name: sectors
+  access: public
+  columns:
+  - name: table_id
+    data_tests:
+    - not_null
+    - relationships:
+        arguments:
+          to: ref('tables')
+          field: table_id
+  - name: code
+    data_tests: [not_null]
+  - name: name
+    data_tests: [not_null]
+  - name: sector_type
+    data_tests:
+    - not_null
+    - accepted_values:
+        arguments:
+          values: [intermediate, intermediate_total, final_demand, value_added, output, reference]
+- name: transactions
+  access: public
+  columns:
+  - name: table_id
+    data_tests: [not_null]
+  - name: value
+    data_tests: [not_null]
+- name: input_coefficients
+  access: public
+  columns:
+  - name: value
+    data_tests: [not_null]
+- name: leontief_inverse
+  access: public
+  columns:
+  - name: open
+    data_tests: [not_null]
+  - name: closed
+    data_tests: [not_null]
+- name: sector_multipliers
+  access: public
+  columns:
+  - name: output_multiplier
+    data_tests: [not_null]

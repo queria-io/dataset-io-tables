@@ -1,0 +1,22 @@
+schema: japan
+name: input_coefficients
+title: 投入係数
+description: |-
+  列部門が 1 単位を生産するのに行部門から投入する量（取引額 ÷ 列部門の国内生産額）です。1 行が 1 表の行部門と列部門の組み合わせ 1 つです。
+
+  - 生産者価格評価の正方の表（sector_count がある表）だけです
+  - 行には内生部門と粗付加価値の部門があります。0 の係数は収録していません
+primary_key: [table_id, row_code, col_code]
+fields:
+  - name: table_id
+    title: 表 ID
+  - name: row_code
+    title: 行部門コード
+  - name: row_name
+    title: 行部門名
+  - name: col_code
+    title: 列部門コード
+  - name: col_name
+    title: 列部門名
+  - name: value
+    title: 投入係数

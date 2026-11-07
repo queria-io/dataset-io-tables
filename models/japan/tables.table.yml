@@ -1,0 +1,50 @@
+schema: japan
+name: tables
+title: 産業連関表の一覧
+description: |-
+  収録している表の一覧です。1 行が 1 表です。ほかのテーブルは table_id でこの表を指します。
+
+  - kind が national は各年の産業連関表、linked は過去 3 時点を同じ部門分類にそろえた接続産業連関表です
+  - 接続表の古い 2 時点には名目と実質（最新時点の価格）の 2 つの表があります
+  - 基本分類の表は行と列の部門が違うので、sector_count が NULL で、係数・逆行列は計算していません
+primary_key: [table_id]
+fields:
+  - name: table_id
+    title: 表 ID
+    description: national_2020_37（2020 年表の 37 部門）や linked2015_2005_37_real（平成17-23-27年接続表の 2005 年、実質）の形
+  - name: kind
+    title: 表の種類
+    description: national（産業連関表）、linked（接続産業連関表）
+    annotations: { queria: { semantic: { role: dimension } } }
+  - name: series
+    title: 接続表の時点
+    description: 接続表が対象にする 3 時点（2005-2011-2015 など）。全国表は NULL
+    annotations: { queria: { semantic: { role: dimension } } }
+  - name: year
+    title: 対象年
+  - name: price
+    title: 名目・実質
+    description: nominal（名目）、real（実質）
+    annotations: { queria: { semantic: { role: dimension } } }
+  - name: real_base_year
+    title: 実質の基準年
+    description: 実質の表の価格の年。名目の表は NULL
+  - name: price_basis
+    title: 価格の評価
+    description: producer（生産者価格評価）、purchaser（購入者価格評価）
+    annotations: { queria: { semantic: { role: dimension } } }
+  - name: classification
+    title: 部門分類
+    description: 出典の表の分類名（統合大分類（37部門）など）
+  - name: sector_count
+    title: 内生部門の数
+    description: 行と列の内生部門が同じ表だけ。基本分類の表は NULL
+  - name: title
+    title: 表の名前
+  - name: source_unit
+    title: 出典の単位
+    description: 出典の Excel に書かれた単位。このデータセットの金額はすべて百万円に換算しています
+  - name: source_url
+    title: 出典の URL
+  - name: source_sheet
+    title: 出典のシート名

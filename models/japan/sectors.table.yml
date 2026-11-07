@@ -1,0 +1,29 @@
+schema: japan
+name: sectors
+title: 部門
+description: |-
+  表ごとの行部門と列部門です。1 行が 1 表の行または列の部門 1 つです。
+
+  - 部門のコードは表ごとに違います。年をまたいで比べるときは名前を確認してください
+  - 古い表で出典にコードの無い計の行・列（内生部門計 など）は、名前をコードにしています
+primary_key: [table_id, side, code]
+fields:
+  - name: table_id
+    title: 表 ID
+  - name: side
+    title: 行・列
+    description: row（行部門）、col（列部門）
+    annotations: { queria: { semantic: { role: dimension } } }
+  - name: position
+    title: 表の中の順番
+  - name: code
+    title: 部門コード
+  - name: name
+    title: 部門名
+  - name: sector_type
+    title: 部門の区分
+    description: intermediate（内生部門）、intermediate_total（内生部門計）、final_demand（最終需要の列）、value_added（粗付加価値の行）、output（国内生産額）、reference（国内総生産などの参考の行・列）
+    annotations: { queria: { semantic: { role: dimension } } }
+  - name: is_total
+    title: 計の部門
+    description: 名前が「計」「合計」で終わる部門。合計するときは除きます
