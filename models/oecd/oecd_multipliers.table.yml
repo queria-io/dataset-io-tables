@@ -1,0 +1,46 @@
+schema: oecd
+name: multipliers
+title: 国×産業ごとの誘発係数
+description: |-
+  国×産業ごとの産出額・付加価値と、全世界の逆行列 (I - A)^-1 から計算した誘発係数です。1 行が 1 年の 1 国の 1 産業です。
+
+  - A は投入係数（取引額 ÷ 列の国×産業の産出額）で、すべての国の産業を内生部門にしています
+  - 誘発係数は、その国×産業の最終需要が 1 単位増えたときの増加です。domestic_ の付く列は同じ国の中で起きる分だけを数えます
+  - value_added_multiplier と domestic_value_added_multiplier の差が、海外で生まれる付加価値の割合です
+primary_key: [year, area, industry]
+fields:
+  - name: year
+    title: 対象年
+  - name: area
+    title: 国・地域コード
+    annotations: { queria: { semantic: { role: dimension } } }
+  - name: area_name
+    title: 国・地域名
+  - name: industry
+    title: 産業コード
+    annotations: { queria: { semantic: { role: dimension } } }
+  - name: industry_name
+    title: 産業名
+  - name: output
+    title: 産出額
+    description: 百万米ドル（名目、基本価格）
+    annotations: { queria: { semantic: { role: measure, agg: sum } } }
+  - name: value_added
+    title: 付加価値
+    description: 百万米ドル（名目、基本価格）
+    annotations: { queria: { semantic: { role: measure, agg: sum } } }
+  - name: value_added_ratio
+    title: 付加価値率
+    description: 付加価値 ÷ 産出額
+  - name: output_multiplier
+    title: 生産誘発係数（全世界）
+    description: 逆行列の列和
+  - name: domestic_output_multiplier
+    title: 生産誘発係数（国内）
+    description: 逆行列の列のうち、同じ国の行の和
+  - name: value_added_multiplier
+    title: 付加価値誘発係数（全世界）
+    description: 付加価値率 × 逆行列 の列和
+  - name: domestic_value_added_multiplier
+    title: 付加価値誘発係数（国内）
+    description: 付加価値率 × 逆行列 の列のうち、同じ国の行の和

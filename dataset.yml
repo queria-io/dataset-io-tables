@@ -4,9 +4,11 @@
 name: io_tables
 title: 産業連関表
 description: |-
-  日本の産業連関表（1995・2000・2005・2011・2015・2020 年）と接続産業連関表（1985 年〜2020 年）の取引基本表を、1 行が 1 セルの縦長のテーブルにしたデータセットです。投入係数・逆行列係数・部門ごとの生産誘発係数と粗付加価値誘発係数も計算して収録しています。
+  日本の産業連関表（1995・2000・2005・2011・2015・2020 年）、接続産業連関表（1985 年〜2020 年）、延長産業連関表（2000 年〜2022 年の毎年）の取引基本表を、1 行が 1 セルの縦長のテーブルにしたデータセットです。投入係数・逆行列係数・部門ごとの生産誘発係数と粗付加価値誘発係数も計算して収録しています。
 
-  出典：総務省ほか「産業連関表」「接続産業連関表」。Queria が加工したものです。
+  OECD の国際産業連関表（ICIO、81 の国・地域 × 50 産業、1995 年〜2022 年）の取引額と、国×産業ごとの誘発係数も収録しています。
+
+  出典：総務省ほか「産業連関表」「接続産業連関表」、経済産業省「延長産業連関表」、OECD (2025), Inter-Country Input-Output Database, http://oe.cd/icio。Queria が加工したものです。
 keywords:
   - 産業連関表
   - 産業連関分析
@@ -16,22 +18,44 @@ keywords:
   - 逆行列係数
   - 生産誘発
   - 接続産業連関表
+  - 延長産業連関表
   - input-output table
+  - ICIO
+  - 国際産業連関表
+  - グローバルバリューチェーン
 homepage: https://github.com/queria-io/dataset-io-tables
 language: ja
 
 licenses:
   - JP-GOV-STD-2.0
+  - id: OECD-TERMS
+    url: https://www.oecd.org/en/about/terms-conditions.html
+    title: OECD Terms and Conditions（データ）
+    commercial_use: true
+    share_alike: false
+    attribution_required: true
 
 sources:
   - title: 総務省 産業連関表
     path: https://www.soumu.go.jp/toukei_toukatsu/data/io/index.htm
   - title: e-Stat 産業連関表
     path: https://www.e-stat.go.jp/stat-search/files?toukei=00200603
+  - title: 経済産業省 延長産業連関表
+    path: https://www.meti.go.jp/statistics/tyo/entyoio/index.html
+  - title: e-Stat 延長産業連関表
+    path: https://www.e-stat.go.jp/stat-search/files?toukei=00550425
+  - title: OECD Inter-Country Input-Output (ICIO) Tables
+    path: https://www.oecd.org/en/data/datasets/inter-country-input-output-tables.html
 
 contributors:
   - title: 総務省
     path: https://www.soumu.go.jp/
+    roles: [rightsHolder]
+  - title: 経済産業省
+    path: https://www.meti.go.jp/
+    roles: [rightsHolder]
+  - title: OECD
+    path: https://www.oecd.org/
     roles: [rightsHolder]
 
 spatial_coverage: [JP]
@@ -40,6 +64,8 @@ update_frequency: irregular
 schemas:
   - name: japan
     title: 日本の産業連関表
+  - name: oecd
+    title: OECD 国際産業連関表（ICIO）
 
 annotations:
   queria:
@@ -48,9 +74,13 @@ annotations:
     ai_context:
       instructions: |
         経済波及効果（ある部門の需要が増えたとき各部門の生産がいくら増えるか）を計算するときに使う。
-        まず japan.tables で表を選ぶ（kind は national（全国表）か linked（接続表）、sector_count が部門数、
+        まず japan.tables で表を選ぶ（kind は national（全国表）、linked（接続表）、extended（毎年の延長表）、sector_count が部門数、
         price_basis は producer（生産者価格評価）を使う）。部門のコードは表ごとに違うので、japan.sectors か
         各テーブルの row_name・col_name で名前を確認してから絞る。
         波及効果は leontief_inverse の open 列（[I-(I-M)A]^-1、輸入を考慮した型）と最終需要の増加額を
         col_code で結合して row_code ごとに合計する。金額の単位はすべて百万円。
-        異なる年を比べるときは、同じ部門分類の接続表（kind = linked、同じ series）を使う。
+        異なる年を比べるときは、同じ部門分類の接続表（kind = linked、同じ series）か、同じ基準年の延長表（kind = extended、同じ series）を使う。
+        5 年ごとの表の間の年や直近の年の構造を見るときは延長表（2000〜2022 年）が使える。
+        国をまたぐ波及（輸出入を通じた生産・付加価値の誘発）は oecd スキーマを使う。oecd.multipliers に国×産業ごとの
+        誘発係数（全世界と国内）、oecd.transactions に取引額（百万米ドル、行が供給する国×産業、列が使う国×産業か最終需要）がある。
+        国は ISO 3 文字コード（日本は JPN）、産業は oecd.industries のコード。

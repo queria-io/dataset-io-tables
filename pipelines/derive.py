@@ -8,7 +8,7 @@
   - open: [I - (I - M)A]^-1。M は輸入係数の対角行列で、
     M_i = 輸入計_i / (内生部門計_i + 国内最終需要計_i)。総務省の計算に合わせて、2011 年表と
     平成12-17-23年接続表 (どちらも 2011 年の作成) 以降は国内最終需要計から調整項を除く。
-    それより前の表は調整項を含めたまま計算する
+    それより前の表と経産省の延長表は調整項を含めたまま計算する
     総務省が「逆行列係数表 [I-(I-M)A]-1」として公表しているのと同じ型
   - closed: (I - A)^-1。輸入を考えない型
 - 部門ごとの値: 国内生産額・輸入係数・粗付加価値率と、open の逆行列から求めた生産誘発係数
@@ -55,11 +55,12 @@ def derive_table(table: dict, sectors: list[dict], cells: dict[tuple[str, str], 
 
     output_row = one(row_names, "国内生産額")
     va_total = one(row_names, "粗付加価値部門計")
-    endo_total = one(col_names, "内生部門計")
+    endo_total = one(col_names, "内生部門計", "中間需要計")  # 古い延長表の列は「中間需要計」
     domestic_final = one(col_names, "国内最終需要計")
     imports = one(col_names, "(控除)輸入計")
     edition = int((table["series"] or str(table["year"])).split("-")[-1])
-    adjustment = col_names.get("調整項") if edition >= 2011 else None
+    # 経産省の延長表は調整項を含めたまま計算している (公表の逆行列と一致する)
+    adjustment = col_names.get("調整項") if edition >= 2011 and table["kind"] != "extended" else None
 
     # 粗付加価値の行: 内生部門計の次から粗付加価値部門計の手前まで
     positions = {s["code"]: int(s["position"]) for s in rows}

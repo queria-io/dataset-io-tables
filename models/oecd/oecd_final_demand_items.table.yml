@@ -1,0 +1,12 @@
+schema: oecd
+name: final_demand_items
+title: ICIO の最終需要の項目
+description: |-
+  transactions の col_item に入る最終需要の 6 項目です。
+primary_key: [code]
+fields:
+  - name: code
+    title: 項目コード
+    description: HFCE・NPISH・GGFC・GFCF・INVNT・DPABR
+  - name: name
+    title: 項目名

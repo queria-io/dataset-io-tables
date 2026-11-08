@@ -1,4 +1,4 @@
-"""総務省ほか「産業連関表」と「接続産業連関表」の取引基本表を縦長の CSV にする。
+"""総務省ほか「産業連関表」「接続産業連関表」と経済産業省「延長産業連関表」の取引基本表を縦長の CSV にする。
 
 e-Stat と総務省のサイトが配る Excel は、表ごとに見出しの行数や位置が違うが、どれも
 「列部門のコードの行 → 列部門の名前の行 → (行部門のコード, 行部門の名前, 値...) の行」
@@ -7,6 +7,9 @@ e-Stat と総務省のサイトが配る Excel は、表ごとに見出しの行
 
 接続産業連関表は 1 つの Excel に 3 時点 (古い 2 時点は名目と実質) がシートで分かれて入っている。
 シート名から年と名目・実質を読む。
+
+延長産業連関表は 1 年・1 分類・名目か実質ごとに 1 つの Excel で、取引額のシートの次に逆行列のシートがある。
+取引額のシート (先頭) だけを読む。
 
 出力:
   data/japan/tables.csv        1 行 = 1 表
@@ -36,11 +39,13 @@ ESTAT = "https://www.e-stat.go.jp/stat-search/file-download?statInfId={}&fileKin
 
 @dataclass(frozen=True)
 class Source:
-    kind: str  # national | linked
-    series: str  # 全国表は年、接続表は対象の 3 時点 (2011-2015-2020)
+    kind: str  # national | linked | extended
+    series: str  # 全国表は年、接続表は対象の 3 時点 (2011-2015-2020)、延長表は基準年
     price_basis: str  # producer | purchaser
     classification: str  # 部門分類の名前 (統合大分類 など)
     url: str
+    year: int | None = None  # 延長表の対象年
+    price: str = "nominal"  # 延長表の名目・実質
 
     @property
     def file_id(self) -> str:
@@ -58,6 +63,39 @@ def national(year: int, basis: str, files: dict[str, str]) -> list[Source]:
 
 def linked(series: str, files: dict[str, str]) -> list[Source]:
     return [Source("linked", series, "producer", c, url if url.startswith("http") else estat(url)) for c, url in files.items()]
+
+
+def extended(base: int, files: dict[int, dict[str, str]]) -> list[Source]:
+    """延長表。files は 対象年 → {"中分類": 名目の statInfId, "中分類実質": 実質の statInfId, ...}。"""
+    names = {"大分類": "統合大分類", "中分類": "統合中分類"}
+    return [
+        Source("extended", str(base), "producer", names[key.removesuffix("実質")], estat(i), year, "real" if key.endswith("実質") else "nominal")
+        for year, ids in files.items()
+        for key, i in ids.items()
+    ]
+
+
+METI = "https://www.meti.go.jp/statistics/tyo/"
+# 経産省のサイトはプログラムからの取得を拒むので、同じパスで R2 に置いた写しから取る
+METI_MIRROR = "https://assets.queria.io/sources/io_tables/meti/"
+
+
+def meti(base: int, small: str, large: str, files: dict[int, tuple[str, str, str, str]], simple: bool = False) -> list[Source]:
+    """経済産業省のサイトにだけある延長表 (2011 年以前と簡易延長表)。
+    files は 対象年 → (小さい分類の名目, 実質, 大きい分類の名目, 実質) の METI からのパス。"""
+    note = "（簡易延長表）" if simple else ""
+    kinds = ((small, "nominal"), (small, "real"), (large, "nominal"), (large, "real"))
+    return [
+        Source("extended", str(base), "producer", classification + note, METI + path, year, price)
+        for year, paths in files.items()
+        for (classification, price), path in zip(kinds, paths)
+        if path
+    ]
+
+
+def ids(*values: str) -> dict[str, str]:
+    """(大分類 名目, 大分類 実質, 中分類 名目, 中分類 実質) の statInfId。"""
+    return dict(zip(("大分類", "大分類実質", "中分類", "中分類実質"), values))
 
 
 SOURCES = [
@@ -91,6 +129,44 @@ SOURCES = [
     *linked("2000-2005-2011", {"統合中分類（105部門）": "000031413705", "統合大分類（37部門）": "000031413706", "13部門分類": "000031413707"}),
     *linked("2005-2011-2015", {"統合中分類（105部門）": "000031974825", "統合大分類（37部門）": "000031974826", "13部門分類": "000031974827"}),
     *linked("2011-2015-2020", {"基本分類": "https://www.soumu.go.jp/main_content/001019115.xlsx"}),
+    *meti(1995, "50部門", "71部門", simple=True, files={
+        year: tuple(f"entyoio/result/base_h07/h07_h{year - 1988}puio{n}{p}.xlsx" for n in (50, 71) for p in "nr")
+        for year in (2000, 2001, 2002)
+    }),
+    *meti(2000, "50部門", "73部門", simple=True, files={
+        2003: tuple(f"kanieio/result/result_4/xls/h2uio03{i}j.xls" for i in (4, 5, 6, 7)),
+        2008: tuple(f"kanieio/result/result_9/xls/h2uio08{i}j.xls" for i in (1, 2, 3, 4)),
+    }),
+    *meti(2000, "50部門", "", files={
+        year: (f"entyoio/result/base_h12/h12_h{year - 1988}uio50n.xlsx", f"entyoio/result/base_h12/h12_h{year - 1988}uio50r.xlsx", "", "")
+        for year in (2004, 2005, 2006, 2007)
+    }),
+    *meti(2005, "統合大分類", "統合中分類", files={
+        2008: tuple(f"entyoio/result/result_12/xls/h2eio08{i}j.xls" for i in (1, 2, 3, 4)),
+        2009: tuple(f"entyoio/result/result_13/xls/h2eio09{i}j.xls" for i in (2, 3, 4, 5)),
+        2010: tuple(f"entyoio/result/result_14/xls/h2eio10{i}j.xls" for i in (2, 3, 4, 5)),
+        2011: tuple(f"entyoio/result/result_15/xls/H23eio{n}{p}pj.xls" for n in (53, 80) for p in "nr"),
+    }),
+    *meti(2005, "統合大分類", "統合中分類", simple=True, files={
+        2012: tuple(f"kanieio/result/result_13/xls/h2uio12{i}j.xls" for i in (3, 4, 6, 7)),
+    }),
+    *extended(2011, {
+        2012: ids("000031752546", "000031752547", "000031752548", "000031752549"),
+        2013: ids("000031752556", "000031752557", "000031752558", "000031752559"),
+        2014: ids("000031752566", "000031752567", "000031752568", "000031752569"),
+        2015: ids("000031752576", "000031752577", "000031752578", "000031752579"),
+    }),
+    *extended(2015, {
+        2016: ids("000031930676", "000031930677", "000031930678", "000031930679"),
+        2017: ids("000032047342", "000032047343", "000032047344", "000032047345"),
+        2018: ids("000032112537", "000032112538", "000032112539", "000032112540"),
+        2019: ids("000032229143", "000032229144", "000032229141", "000032229142"),
+        2020: ids("000040106266", "000040106267", "000040106264", "000040106265"),
+    }),
+    *extended(2020, {
+        2021: ids("000040387832", "000040387833", "000040387830", "000040387831"),
+        2022: ids("000040503552", "000040503773", "000040503550", "000040503551"),
+    }),
 ]
 
 CODE = re.compile(r"^\d{1,7}$")
@@ -156,9 +232,12 @@ def parse_matrix(frame: pd.DataFrame) -> tuple[list[tuple[str, str]], list[tuple
     head = max(range(min(30, len(values) - 1)), key=score)
     first = min(j for j in range(2, cells.shape[1]) if CODE.match(values[head][j]) and is_name(values[head + 1][j]))
     code_col = first - 2
+    # 列部門の名前が 2 行に分かれている表 (延長表の「(控除)」の下に「輸入計」) は、続きの行を名前につなげる
+    below = values[head + 2] if head + 2 < len(values) else [""] * cells.shape[1]
+    names = [a + b if a == "(控除)" and is_name(b) else a for a, b in zip(values[head + 1], below)]
     # コードの無い部門 (古い表の計の行・列など) は名前をコードの代わりにする
     columns = {
-        j: (values[head][j] or values[head + 1][j], values[head + 1][j])
+        j: (values[head][j] or names[j], names[j])
         for j in range(first, cells.shape[1])
         if is_name(values[head + 1][j]) and (CODE.match(values[head][j]) or not values[head][j])
     }
@@ -186,8 +265,9 @@ def read_book(source: Source) -> dict[str, pd.DataFrame]:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = CACHE_DIR / source.file_id
     if not path.exists():
-        logger.info("  %s", source.url)
-        path.write_bytes(fetch(source.url, user_agent=USER_AGENT, timeout=300))
+        url = source.url.replace(METI, METI_MIRROR)
+        logger.info("  %s", url)
+        path.write_bytes(fetch(url, user_agent=USER_AGENT, timeout=300))
     return pd.read_excel(path, sheet_name=None, header=None, dtype=object)
 
 
@@ -196,7 +276,7 @@ def sector_count(rows: list[tuple[str, str]], cols: list[tuple[str, str]]) -> in
     def endogenous(seq):
         out = []
         for code, name in seq:
-            if "内生部門計" in name:
+            if "内生部門計" in name or name == "中間需要計":  # 古い延長表の列は「中間需要計」
                 return out
             out.append(code)
         return None
@@ -207,7 +287,8 @@ def sector_count(rows: list[tuple[str, str]], cols: list[tuple[str, str]]) -> in
 
 def table_id(source: Source, year: int, price: str, sectors: int | None) -> str:
     size = "basic" if source.classification == "基本分類" else str(sectors or "")
-    parts = ["national" if source.kind == "national" else f"linked{source.series.split('-')[-1]}", str(year), size]
+    prefix = {"national": "national", "extended": f"extended{source.series}"}.get(source.kind) or f"linked{source.series.split('-')[-1]}"
+    parts = [prefix, str(year), size]
     if price == "real":
         parts.append("real")
     if source.price_basis == "purchaser":
@@ -216,8 +297,11 @@ def table_id(source: Source, year: int, price: str, sectors: int | None) -> str:
 
 
 def extract(source: Source):
-    for sheet, frame in read_book(source).items():
-        if source.kind == "national":
+    book = read_book(source)
+    for sheet, frame in list(book.items())[:1] if source.kind == "extended" else book.items():
+        if source.kind == "extended":
+            year, price = source.year, source.price
+        elif source.kind == "national":
             year, price = int(source.series), "nominal"
         else:
             year, price = sheet_year(sheet, source.series)
@@ -231,10 +315,10 @@ def extract(source: Source):
         table = {
             "table_id": tid,
             "kind": source.kind,
-            "series": source.series if source.kind == "linked" else "",
+            "series": "" if source.kind == "national" else source.series,
             "year": year,
             "price": price,
-            "real_base_year": source.series.split("-")[-1] if price == "real" else "",
+            "real_base_year": source.series.split("-")[-1] if price == "real" else "",  # 延長表の実質は基準年の価格
             "price_basis": source.price_basis,
             "classification": source.classification,
             "sector_count": sectors or "",
