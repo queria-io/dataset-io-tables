@@ -10,7 +10,7 @@ ICIO は 81 の国・地域 (80 か国と Rest of the World) × 50 産業の国�
   - value_added_multiplier: 付加価値率 × L の列和 (全世界の付加価値誘発)。domestic_ は同じ国の行だけの和
   逆行列そのものは 1 年 4,050 × 4,050 で大きいので収録しない
 
-入力: data/raw/oecd/ に置いた年範囲ごとの zip (1995-2000_SML.zip など)
+入力: 年範囲ごとの zip (1995-2000_SML.zip など) と ReadMe。OECD の配布物と同じものを R2 に置いて取る
 出力: data/oecd/{areas,industries,tables}.csv、data/oecd/{transactions,multipliers}/<year>.parquet
 """
 
@@ -30,6 +30,8 @@ logger = logging.getLogger("pipelines")
 
 EDITION = 2025
 BASE_URL = f"https://webfs-sti.oecd.org/files/STI-PIE/ICIO/{EDITION}/"
+# OECD の配布サーバーはブラウザ以外からの取得を拒むので、同じファイル名で R2 に置いた写しから取る
+MIRROR_URL = f"https://assets.queria.io/sources/io_tables/oecd/{EDITION}/"
 ARCHIVES = ["1995-2000_SML.zip", "2001-2005_SML.zip", "2006-2010_SML.zip", "2011-2015_SML.zip", "2016-2022_SML.zip"]
 README = "ReadMe_ICIO_small.xlsx"
 USER_AGENT = "dataset-io-tables (+https://github.com/queria-io/dataset-io-tables)"
@@ -49,8 +51,8 @@ def cached(name: str) -> Path:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = CACHE_DIR / name
     if not path.exists():
-        logger.info("  %s", BASE_URL + name)
-        download(BASE_URL + name, path, user_agent=USER_AGENT)
+        logger.info("  %s", MIRROR_URL + name)
+        download(MIRROR_URL + name, path, user_agent=USER_AGENT)
     return path
 
 

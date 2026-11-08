@@ -76,6 +76,8 @@ def extended(base: int, files: dict[int, dict[str, str]]) -> list[Source]:
 
 
 METI = "https://www.meti.go.jp/statistics/tyo/"
+# 経産省のサイトはプログラムからの取得を拒むので、同じパスで R2 に置いた写しから取る
+METI_MIRROR = "https://assets.queria.io/sources/io_tables/meti/"
 
 
 def meti(base: int, small: str, large: str, files: dict[int, tuple[str, str, str, str]], simple: bool = False) -> list[Source]:
@@ -263,8 +265,9 @@ def read_book(source: Source) -> dict[str, pd.DataFrame]:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = CACHE_DIR / source.file_id
     if not path.exists():
-        logger.info("  %s", source.url)
-        path.write_bytes(fetch(source.url, user_agent=USER_AGENT, timeout=300))
+        url = source.url.replace(METI, METI_MIRROR)
+        logger.info("  %s", url)
+        path.write_bytes(fetch(url, user_agent=USER_AGENT, timeout=300))
     return pd.read_excel(path, sheet_name=None, header=None, dtype=object)
 
 

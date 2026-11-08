@@ -1,10 +1,10 @@
 # 産業連関表
 
-日本の産業連関表・接続産業連関表・延長産業連関表を、SQL で集計できるテーブルにしたデータセットです。取引基本表を 1 行が 1 セルの縦長のテーブルにし、投入係数・逆行列係数・部門ごとの誘発係数も計算して収録しています。
+日本の産業連関表・接続産業連関表・延長産業連関表と、OECD の国際産業連関表（ICIO）を、SQL で集計できるテーブルにしたデータセットです。取引基本表を 1 行が 1 セルの縦長のテーブルにし、投入係数・逆行列係数・部門ごとの誘発係数も計算して収録しています。
 
 ## 出典と利用条件
 
-総務省ほか 10 府省庁が作成する「産業連関表」と「接続産業連関表」、経済産業省が作成する「延長産業連関表」の取引基本表を、e-Stat と総務省のサイトが配布する Excel から取り込んでいます。
+総務省ほか 10 府省庁が作成する「産業連関表」と「接続産業連関表」、経済産業省が作成する「延長産業連関表」の取引基本表を、e-Stat・総務省・経済産業省のサイトが配布する Excel から取り込んでいます。
 
 - [産業連関表（総務省）](https://www.soumu.go.jp/toukei_toukatsu/data/io/index.htm)
 - [e-Stat 産業連関表](https://www.e-stat.go.jp/stat-search/files?toukei=00200603)
@@ -12,6 +12,10 @@
 - [e-Stat 延長産業連関表](https://www.e-stat.go.jp/stat-search/files?toukei=00550425)
 
 どちらも[政府標準利用規約（第2.0版）](https://www.digital.go.jp/resources/open_data/)に準拠した利用条件で提供されています。使うときは出典として表の名前を書き、Queria が加工したものであることを明記してください。
+
+`oecd` スキーマは、OECD の [Inter-Country Input-Output (ICIO) Tables](https://www.oecd.org/en/data/datasets/inter-country-input-output-tables.html) 2025 年版（small version）から作っています。[OECD の利用条件](https://www.oecd.org/en/about/terms-conditions.html)に従い、商用を含めて利用できます。使うときは「OECD (2025), Inter-Country Input-Output Database, http://oe.cd/icio」と出典を書いてください。
+
+経済産業省のサイトと OECD の配布サーバーは自動の取得を受け付けないため、配布されているファイルをそのまま `https://assets.queria.io/sources/io_tables/` に置き、ビルドはそこから取得しています（パスとファイル名は出典と同じです）。
 
 ## 収録範囲
 
@@ -27,6 +31,7 @@
 - 1990 年以前の産業連関表は、総務省が報告書の PDF だけで公表しているため収録していません。1985 年と 1990 年は接続表で使えます
 - 2008 年と 2012 年は、基準年の違う 2 つの延長表があります（`series` で区別します）
 - 1999 年以前の延長表は、経済産業省が基本分類の表だけを公表しているため、まだ収録していません
+- OECD ICIO は 1995〜2022 年の毎年、81 の国・地域（80 か国と Rest of the World）× 50 産業です。金額は百万米ドル（名目）です
 
 ## テーブル
 
@@ -38,8 +43,12 @@
 | `japan.input_coefficients` | 投入係数 |
 | `japan.leontief_inverse` | 逆行列係数。`open` が [I-(I-M)A]^-1 型、`closed` が (I-A)^-1 型 |
 | `japan.sector_multipliers` | 部門ごとの国内生産額・輸入係数・粗付加価値率・生産誘発係数・粗付加価値誘発係数 |
+| `oecd.tables` | ICIO の年の一覧 |
+| `oecd.areas` / `oecd.industries` / `oecd.final_demand_items` | 国・地域、産業、最終需要の項目 |
+| `oecd.transactions` | ICIO の取引額。1 行が 1 年の (行, 列) 1 つ。単位は百万米ドル |
+| `oecd.multipliers` | 国×産業ごとの産出額・付加価値と、全世界の逆行列 (I-A)^-1 から計算した誘発係数（全世界と国内） |
 
-係数と逆行列は、生産者価格評価で行と列の部門が同じ表（`tables.sector_count` がある表）だけ計算しています。
+係数と逆行列は、生産者価格評価で行と列の部門が同じ表（`tables.sector_count` がある表）だけ計算しています。ICIO の逆行列は 1 年 4,050 × 4,050 と大きいため収録せず、誘発係数だけを収録しています。
 
 ## 使い方
 
@@ -73,6 +82,28 @@ FROM io_tables.japan.sector_multipliers AS m
 JOIN io_tables.japan.tables AS t USING (table_id)
 WHERE t.series = '2005-2011-2015' AND t.sector_count = 37 AND t.price = 'nominal'
 ORDER BY m.name, t.year;
+```
+
+日本の自動車産業の最終需要 1 単位が、どれだけの付加価値を国内と海外で生むか（ICIO）:
+
+```sql
+SELECT year, value_added_multiplier, domestic_value_added_multiplier,
+       value_added_multiplier - domestic_value_added_multiplier AS foreign
+FROM io_tables.oecd.multipliers
+WHERE area = 'JPN' AND industry = 'C29'
+ORDER BY year;
+```
+
+2022 年に日本の産業が中間投入に使った輸入品を、輸入元の国ごとに集計する:
+
+```sql
+SELECT a.name, round(sum(value)) AS million_usd
+FROM io_tables.oecd.transactions AS t
+JOIN io_tables.oecd.areas AS a ON a.code = t.row_area
+WHERE year = 2022 AND col_area = 'JPN' AND row_area <> 'JPN'
+  AND col_item IN (SELECT code FROM io_tables.oecd.industries)
+GROUP BY a.name
+ORDER BY million_usd DESC;
 ```
 
 ## 注意
