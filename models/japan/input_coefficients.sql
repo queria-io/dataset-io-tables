@@ -6,7 +6,7 @@ with source as (
         row_code,
         col_code,
         cast(value as double) as value
-    from read_csv('data/japan/input_coefficients.csv', header = true, all_varchar = true)
+    from read_csv('data/japan/input_coefficients.csv', header = true, quote = '"', all_varchar = true)
 )
 
 select

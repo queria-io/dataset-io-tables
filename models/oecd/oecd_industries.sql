@@ -3,4 +3,4 @@
 {{ config(alias='industries') }}
 
 select code, name, isic
-from read_csv('data/oecd/industries.csv', header = true, all_varchar = true)
+from read_csv('data/oecd/industries.csv', header = true, quote = '"', all_varchar = true)

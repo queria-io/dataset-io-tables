@@ -3,7 +3,7 @@
 
 with source as (
     select table_id, row_code, col_code, cast(value as double) as value
-    from read_csv('data/japan/transactions.csv', header = true, all_varchar = true)
+    from read_csv('data/japan/transactions.csv', header = true, quote = '"', all_varchar = true)
 )
 
 select

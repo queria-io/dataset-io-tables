@@ -11,6 +11,10 @@ e-Stat と総務省のサイトが配る Excel は、表ごとに見出しの行
 延長産業連関表は 1 年・1 分類・名目か実質ごとに 1 つの Excel で、取引額のシートの次に逆行列のシートがある。
 取引額のシート (先頭) だけを読む。
 
+1999 年以前の延長表は基本分類 (名目) だけで、Excel には取引額の「Sheet1」と、基本分類から経済産業省の
+統合分類 (小・中・大) への対応を書いた「分類表」がある。基本分類の表と、内生部門を分類表で統合分類に
+集計した表を作る。最終需要と粗付加価値の部門は基本分類のまま残す。
+
 出力:
   data/japan/tables.csv        1 行 = 1 表
   data/japan/sectors.csv       1 行 = 1 表の行部門または列部門 1 つ
@@ -93,6 +97,12 @@ def meti(base: int, small: str, large: str, files: dict[int, tuple[str, str, str
     ]
 
 
+def basic(base: int, prefix: str, years: list[int]) -> list[Source]:
+    """1999 年以前の延長表 (基本分類、名目)。ファイル名の年は和暦 (s48 = 昭和48年、h04 = 平成4年)。"""
+    era = lambda year: f"s{year - 1925}" if year < 1989 else f"h{year - 1988:02d}"  # noqa: E731
+    return [Source("extended", str(base), "producer", "基本分類", f"{METI}entyoio/result/base_{prefix}/{prefix}_{era(year)}uio.xlsx", year) for year in years]
+
+
 def ids(*values: str) -> dict[str, str]:
     """(大分類 名目, 大分類 実質, 中分類 名目, 中分類 実質) の statInfId。"""
     return dict(zip(("大分類", "大分類実質", "中分類", "中分類実質"), values))
@@ -129,6 +139,12 @@ SOURCES = [
     *linked("2000-2005-2011", {"統合中分類（105部門）": "000031413705", "統合大分類（37部門）": "000031413706", "13部門分類": "000031413707"}),
     *linked("2005-2011-2015", {"統合中分類（105部門）": "000031974825", "統合大分類（37部門）": "000031974826", "13部門分類": "000031974827"}),
     *linked("2011-2015-2020", {"基本分類": "https://www.soumu.go.jp/main_content/001019115.xlsx"}),
+    *basic(1970, "s45", [1973, 1974, 1975, 1976]),
+    *basic(1975, "s50", [1977, 1978, 1979, 1980, 1981]),
+    *basic(1980, "s55", [1982, 1983, 1984, 1985]),
+    *basic(1985, "s60", [1986, 1987, 1988, 1989, 1990, 1991]),
+    *basic(1990, "h02", [1992, 1993, 1994, 1995]),
+    *basic(1995, "h07", [1996, 1997, 1998, 1999]),
     *meti(1995, "50部門", "71部門", simple=True, files={
         year: tuple(f"entyoio/result/base_h07/h07_h{year - 1988}puio{n}{p}.xlsx" for n in (50, 71) for p in "nr")
         for year in (2000, 2001, 2002)
@@ -261,6 +277,62 @@ def parse_matrix(frame: pd.DataFrame) -> tuple[list[tuple[str, str]], list[tuple
     return [(c, n) for _, c, n in rows], list(columns.values()), data
 
 
+def classification_levels(frame: pd.DataFrame) -> list[tuple[str, dict, dict]]:
+    """分類表から、統合分類ごとに (分類の名前, 行コード → (コード, 名前), 列コード → (コード, 名前)) を返す。
+
+    分類表は「列コード, 列部門名, 行コード, 行部門名, (統合分類のコード, 統合名) ...」の形。1 つの列部門が
+    複数の行部門に分かれるので、列コードは最初の行だけ書かれている表もある。大分類だけ列用と行用に分かれた
+    表 (統合大分類(47部門)列・統合大分類(47部門)行) もある。コードの末尾の P (屑・副産物の行) は除く。
+    分類表のコードが取引額のシートと違う部門 (1970 年基準の不動産賃貸料) があるので、部門名でも引けるようにする。"""
+    values = frame.map(norm).values
+    head = next(i for i in range(10) if any(v.startswith("統合") for v in values[i]))
+    groups: dict[str, list[int]] = {}
+    for j, v in enumerate(values[head]):
+        if v.startswith("統合"):
+            groups.setdefault(re.sub(r"[列行]$", "", v), []).append(j)
+    digits = lambda text: re.sub(r"\D", "", text)  # noqa: E731
+    levels = []
+    for name, columns in groups.items():
+        rows, cols = {}, {}
+        for line in values[head + 2 :]:
+            # 列用と行用がある分類は、行部門には最後 (行用)、列部門には最初 (列用) を使う
+            row_j = next((j for j in reversed(columns) if line[j]), None)
+            col_j = next((j for j in columns if line[j]), None)
+            if line[2] and row_j is not None:
+                rows[digits(line[2])] = rows[line[3]] = (line[row_j], line[row_j + 1])
+            if line[0] and col_j is not None:
+                cols.setdefault(digits(line[0]), (line[col_j], line[col_j + 1]))
+                cols.setdefault(line[1], (line[col_j], line[col_j + 1]))
+        levels.append((name.replace("(", "（").replace(")", "）"), rows, cols))
+    return levels
+
+
+def aggregate(rows, cols, data, row_map: dict, col_map: dict):
+    """内生部門 (内生部門計より前) を統合分類に集計する。それ以外の部門はそのまま。"""
+    def split(seq, mapping, side):
+        names = [n for _, n in seq]
+        k = names.index("内生部門計")
+        missing = [(c, n) for c, n in seq[:k] if c not in mapping and n not in mapping]
+        if missing:
+            raise SystemExit(f"分類表に無い{side}部門: {missing[:5]}")
+        return {c: mapping.get(c) or mapping[n] for c, n in seq[:k]}, seq[k:]
+
+    row_to, row_rest = split(rows, row_map, "行")
+    col_to, col_rest = split(cols, col_map, "列")
+    # 同じコードの統合部門は名前の書き方が行ごとに違うことがあるので、コードでまとめ、名前は分類表で最初のもの
+    names = dict(reversed(list(row_map.values()) + list(col_map.values())))
+    order = list(dict.fromkeys(code for code, _ in row_map.values()))  # 分類表の並び
+    used_rows = {code for code, _ in row_to.values()}
+    used_cols = {code for code, _ in col_to.values()}
+    new_rows = [(c, names[c]) for c in order if c in used_rows] + row_rest
+    new_cols = [(c, names[c]) for c in order if c in used_cols] + col_rest
+    sums: dict[tuple[str, str], float] = {}
+    for r, c, v in data:
+        key = (row_to[r][0] if r in row_to else r, col_to[c][0] if c in col_to else c)
+        sums[key] = sums.get(key, 0.0) + v
+    return new_rows, new_cols, [(r, c, v) for (r, c), v in sums.items() if v != 0]
+
+
 def read_book(source: Source) -> dict[str, pd.DataFrame]:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = CACHE_DIR / source.file_id
@@ -285,8 +357,10 @@ def sector_count(rows: list[tuple[str, str]], cols: list[tuple[str, str]]) -> in
     return len(r) if r is not None and r == c else None
 
 
-def table_id(source: Source, year: int, price: str, sectors: int | None) -> str:
-    size = "basic" if source.classification == "基本分類" else str(sectors or "")
+def table_id(source: Source, classification: str, year: int, price: str, sectors: int | None) -> str:
+    # 行と列の部門が違う統合小分類 (屑の行がある) は、分類の名前の部門数を使う
+    named = re.search(r"（(\d+)部門）", classification)
+    size = "basic" if classification == "基本分類" else str(sectors or (named.group(1) if named else ""))
     prefix = {"national": "national", "extended": f"extended{source.series}"}.get(source.kind) or f"linked{source.series.split('-')[-1]}"
     parts = [prefix, str(year), size]
     if price == "real":
@@ -296,22 +370,33 @@ def table_id(source: Source, year: int, price: str, sectors: int | None) -> str:
     return "_".join(parts)
 
 
+def matrices(source: Source, book: dict[str, pd.DataFrame]):
+    """(シート, 分類の名前, 行部門, 列部門, セル) を表ごとに返す。"""
+    if "分類表" in book:  # 1999 年以前の延長表
+        rows, cols, data = parse_matrix(book["Sheet1"])
+        yield "Sheet1", source.classification, rows, cols, data
+        for name, row_map, col_map in classification_levels(book["分類表"]):
+            yield "Sheet1", name, *aggregate(rows, cols, data, row_map, col_map)
+        return
+    for sheet, frame in list(book.items())[:1] if source.kind == "extended" else book.items():
+        yield sheet, source.classification, *parse_matrix(frame)
+
+
 def extract(source: Source):
     book = read_book(source)
-    for sheet, frame in list(book.items())[:1] if source.kind == "extended" else book.items():
+    for sheet, classification, rows, cols, data in matrices(source, book):
         if source.kind == "extended":
             year, price = source.year, source.price
         elif source.kind == "national":
             year, price = int(source.series), "nominal"
         else:
             year, price = sheet_year(sheet, source.series)
-        rows, cols, data = parse_matrix(frame)
-        unit = find_unit(frame.iloc[:12].map(norm))
+        unit = find_unit(book[sheet].iloc[:12].map(norm))
         scale = UNITS.get(unit or "百万円")
         if scale is None:
             raise SystemExit(f"{source.url} {sheet}: 単位 {unit} を想定していない")
         sectors = sector_count(rows, cols)
-        tid = table_id(source, year, price, sectors)
+        tid = table_id(source, classification, year, price, sectors)
         table = {
             "table_id": tid,
             "kind": source.kind,
@@ -320,7 +405,7 @@ def extract(source: Source):
             "price": price,
             "real_base_year": source.series.split("-")[-1] if price == "real" else "",  # 延長表の実質は基準年の価格
             "price_basis": source.price_basis,
-            "classification": source.classification,
+            "classification": classification,
             "sector_count": sectors or "",
             "source_unit": unit or "",
             "source_url": source.url,

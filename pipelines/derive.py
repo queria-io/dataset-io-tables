@@ -53,11 +53,16 @@ def derive_table(table: dict, sectors: list[dict], cells: dict[tuple[str, str], 
     row_names = {s["name"]: s["code"] for s in rows}
     col_names = {s["name"]: s["code"] for s in cols}
 
-    output_row = one(row_names, "国内生産額")
-    va_total = one(row_names, "粗付加価値部門計")
+    output_row = one(row_names, "国内生産額", "生産額")  # 1970 年基準の延長表は「生産額」「付加価値部門計」
+    va_total = one(row_names, "粗付加価値部門計", "付加価値部門計")
     endo_total = one(col_names, "内生部門計", "中間需要計")  # 古い延長表の列は「中間需要計」
-    domestic_final = one(col_names, "国内最終需要計")
-    imports = one(col_names, "(控除)輸入計")
+    # 1985 年以前の延長表には国内最終需要計や輸入計の列が無い表がある。そのときは内訳の列を足す
+    # (国内最終需要: 内生部門計の次から輸出の手前まで、輸入: 「(控除)」で始まる列。どちらも「計」の列は除く)
+    names = [s["name"] for s in cols]
+    start = names.index(one({n: n for n in names}, "内生部門計", "中間需要計")) + 1
+    end = next(i for i in range(start, len(names)) if names[i].startswith("輸出") or names[i] == "特需")
+    domestic_final = [col_names["国内最終需要計"]] if "国内最終需要計" in col_names else [cols[i]["code"] for i in range(start, end) if not names[i].endswith("計")]
+    imports = [col_names["(控除)輸入計"]] if "(控除)輸入計" in col_names else [s["code"] for s in cols[start:] if s["name"].startswith("(控除)") and not s["name"].endswith("計")]
     edition = int((table["series"] or str(table["year"])).split("-")[-1])
     # 経産省の延長表は調整項を含めたまま計算している (公表の逆行列と一致する)
     adjustment = col_names.get("調整項") if edition >= 2011 and table["kind"] != "extended" else None
@@ -68,13 +73,20 @@ def derive_table(table: dict, sectors: list[dict], cells: dict[tuple[str, str], 
 
     get = lambda r, c: cells.get((r, c), 0.0)  # noqa: E731
     x = np.array([get(output_row, c) for c in endo])
+    # 行の国内生産額 (列の計) と列の国内生産額 (行の計) が合わない表は係数を計算しない。
+    # 1980 年基準の延長表 (1982〜1985 年) は、出典の事業用火力発電などの列に粗付加価値と国内生産額が無い
+    output_col = one(col_names, "国内生産額", "生産額")
+    unbalanced = [r for r, v in zip(endo, x) if abs(get(r, output_col) - v) > 1]
+    if unbalanced:
+        logger.warning("  %s: 行と列の国内生産額が合わない部門があるので係数を計算しない (%s)", table["table_id"], ", ".join(unbalanced[:5]))
+        return [], [], []
     z = np.array([[get(r, c) for c in endo] for r in endo])
     with np.errstate(divide="ignore", invalid="ignore"):
         a = np.where(x > 0, z / x, 0.0)
         va = np.array([[get(r, c) for c in endo] for r in va_rows])
         va_coef = np.where(x > 0, va / x, 0.0)
-        demand = np.array([get(r, endo_total) + get(r, domestic_final) - (get(r, adjustment) if adjustment else 0) for r in endo])
-        m = np.where(demand != 0, -np.array([get(r, imports) for r in endo]) / demand, 0.0)
+        demand = np.array([get(r, endo_total) + sum(get(r, c) for c in domestic_final) - (get(r, adjustment) if adjustment else 0) for r in endo])
+        m = np.where(demand != 0, -np.array([sum(get(r, c) for c in imports) for r in endo]) / demand, 0.0)
         va_ratio = np.where(x > 0, np.array([get(va_total, c) for c in endo]) / x, 0.0)
 
     eye = np.eye(n)

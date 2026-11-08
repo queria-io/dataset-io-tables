@@ -3,4 +3,4 @@
 {{ config(alias='final_demand_items') }}
 
 select code, name
-from read_csv('data/oecd/final_demand.csv', header = true, all_varchar = true)
+from read_csv('data/oecd/final_demand.csv', header = true, quote = '"', all_varchar = true)
