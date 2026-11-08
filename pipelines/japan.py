@@ -75,6 +75,22 @@ def extended(base: int, files: dict[int, dict[str, str]]) -> list[Source]:
     ]
 
 
+METI = "https://www.meti.go.jp/statistics/tyo/"
+
+
+def meti(base: int, small: str, large: str, files: dict[int, tuple[str, str, str, str]], simple: bool = False) -> list[Source]:
+    """経済産業省のサイトにだけある延長表 (2011 年以前と簡易延長表)。
+    files は 対象年 → (小さい分類の名目, 実質, 大きい分類の名目, 実質) の METI からのパス。"""
+    note = "（簡易延長表）" if simple else ""
+    kinds = ((small, "nominal"), (small, "real"), (large, "nominal"), (large, "real"))
+    return [
+        Source("extended", str(base), "producer", classification + note, METI + path, year, price)
+        for year, paths in files.items()
+        for (classification, price), path in zip(kinds, paths)
+        if path
+    ]
+
+
 def ids(*values: str) -> dict[str, str]:
     """(大分類 名目, 大分類 実質, 中分類 名目, 中分類 実質) の statInfId。"""
     return dict(zip(("大分類", "大分類実質", "中分類", "中分類実質"), values))
@@ -111,6 +127,27 @@ SOURCES = [
     *linked("2000-2005-2011", {"統合中分類（105部門）": "000031413705", "統合大分類（37部門）": "000031413706", "13部門分類": "000031413707"}),
     *linked("2005-2011-2015", {"統合中分類（105部門）": "000031974825", "統合大分類（37部門）": "000031974826", "13部門分類": "000031974827"}),
     *linked("2011-2015-2020", {"基本分類": "https://www.soumu.go.jp/main_content/001019115.xlsx"}),
+    *meti(1995, "50部門", "71部門", simple=True, files={
+        year: tuple(f"entyoio/result/base_h07/h07_h{year - 1988}puio{n}{p}.xlsx" for n in (50, 71) for p in "nr")
+        for year in (2000, 2001, 2002)
+    }),
+    *meti(2000, "50部門", "73部門", simple=True, files={
+        2003: tuple(f"kanieio/result/result_4/xls/h2uio03{i}j.xls" for i in (4, 5, 6, 7)),
+        2008: tuple(f"kanieio/result/result_9/xls/h2uio08{i}j.xls" for i in (1, 2, 3, 4)),
+    }),
+    *meti(2000, "50部門", "", files={
+        year: (f"entyoio/result/base_h12/h12_h{year - 1988}uio50n.xlsx", f"entyoio/result/base_h12/h12_h{year - 1988}uio50r.xlsx", "", "")
+        for year in (2004, 2005, 2006, 2007)
+    }),
+    *meti(2005, "統合大分類", "統合中分類", files={
+        2008: tuple(f"entyoio/result/result_12/xls/h2eio08{i}j.xls" for i in (1, 2, 3, 4)),
+        2009: tuple(f"entyoio/result/result_13/xls/h2eio09{i}j.xls" for i in (2, 3, 4, 5)),
+        2010: tuple(f"entyoio/result/result_14/xls/h2eio10{i}j.xls" for i in (2, 3, 4, 5)),
+        2011: tuple(f"entyoio/result/result_15/xls/H23eio{n}{p}pj.xls" for n in (53, 80) for p in "nr"),
+    }),
+    *meti(2005, "統合大分類", "統合中分類", simple=True, files={
+        2012: tuple(f"kanieio/result/result_13/xls/h2uio12{i}j.xls" for i in (3, 4, 6, 7)),
+    }),
     *extended(2011, {
         2012: ids("000031752546", "000031752547", "000031752548", "000031752549"),
         2013: ids("000031752556", "000031752557", "000031752558", "000031752559"),
@@ -193,9 +230,12 @@ def parse_matrix(frame: pd.DataFrame) -> tuple[list[tuple[str, str]], list[tuple
     head = max(range(min(30, len(values) - 1)), key=score)
     first = min(j for j in range(2, cells.shape[1]) if CODE.match(values[head][j]) and is_name(values[head + 1][j]))
     code_col = first - 2
+    # 列部門の名前が 2 行に分かれている表 (延長表の「(控除)」の下に「輸入計」) は、続きの行を名前につなげる
+    below = values[head + 2] if head + 2 < len(values) else [""] * cells.shape[1]
+    names = [a + b if a == "(控除)" and is_name(b) else a for a, b in zip(values[head + 1], below)]
     # コードの無い部門 (古い表の計の行・列など) は名前をコードの代わりにする
     columns = {
-        j: (values[head][j] or values[head + 1][j], values[head + 1][j])
+        j: (values[head][j] or names[j], names[j])
         for j in range(first, cells.shape[1])
         if is_name(values[head + 1][j]) and (CODE.match(values[head][j]) or not values[head][j])
     }
@@ -233,7 +273,7 @@ def sector_count(rows: list[tuple[str, str]], cols: list[tuple[str, str]]) -> in
     def endogenous(seq):
         out = []
         for code, name in seq:
-            if "内生部門計" in name:
+            if "内生部門計" in name or name == "中間需要計":  # 古い延長表の列は「中間需要計」
                 return out
             out.append(code)
         return None
@@ -244,7 +284,7 @@ def sector_count(rows: list[tuple[str, str]], cols: list[tuple[str, str]]) -> in
 
 def table_id(source: Source, year: int, price: str, sectors: int | None) -> str:
     size = "basic" if source.classification == "基本分類" else str(sectors or "")
-    prefix = {"national": "national", "extended": "extended"}.get(source.kind) or f"linked{source.series.split('-')[-1]}"
+    prefix = {"national": "national", "extended": f"extended{source.series}"}.get(source.kind) or f"linked{source.series.split('-')[-1]}"
     parts = [prefix, str(year), size]
     if price == "real":
         parts.append("real")

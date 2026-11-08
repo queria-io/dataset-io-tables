@@ -14,7 +14,8 @@ marks as (
     select
         table_id,
         side,
-        min(position) filter (where name = '内生部門計') as endogenous_total,
+        -- 古い延長表は列の内生部門計を「中間需要計」と書いている
+        min(position) filter (where name in ('内生部門計', '中間需要計')) as endogenous_total,
         min(position) filter (where name = '国内生産額') as output
     from source
     group by table_id, side

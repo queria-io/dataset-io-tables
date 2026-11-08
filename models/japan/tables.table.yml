@@ -12,7 +12,7 @@ primary_key: [table_id]
 fields:
   - name: table_id
     title: 表 ID
-    description: national_2020_37（2020 年表の 37 部門）、linked2015_2005_37_real（平成17-23-27年接続表の 2005 年、実質）、extended_2022_52（2022 年の延長表の 52 部門）の形
+    description: national_2020_37（2020 年表の 37 部門）、linked2015_2005_37_real（平成17-23-27年接続表の 2005 年、実質）、extended2020_2022_52（2020 年基準の延長表の 2022 年、52 部門）の形
   - name: kind
     title: 表の種類
     description: national（産業連関表）、linked（接続産業連関表）、extended（延長産業連関表）

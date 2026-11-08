@@ -55,7 +55,7 @@ def derive_table(table: dict, sectors: list[dict], cells: dict[tuple[str, str], 
 
     output_row = one(row_names, "国内生産額")
     va_total = one(row_names, "粗付加価値部門計")
-    endo_total = one(col_names, "内生部門計")
+    endo_total = one(col_names, "内生部門計", "中間需要計")  # 古い延長表の列は「中間需要計」
     domestic_final = one(col_names, "国内最終需要計")
     imports = one(col_names, "(控除)輸入計")
     edition = int((table["series"] or str(table["year"])).split("-")[-1])
