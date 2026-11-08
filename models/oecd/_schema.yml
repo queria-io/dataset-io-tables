@@ -1,0 +1,47 @@
+version: 2
+
+models:
+- name: oecd_areas
+  access: public
+  columns:
+  - name: code
+    data_tests: [unique, not_null]
+- name: oecd_industries
+  access: public
+  columns:
+  - name: code
+    data_tests: [unique, not_null]
+- name: oecd_final_demand_items
+  access: public
+  columns:
+  - name: code
+    data_tests: [unique, not_null]
+- name: oecd_tables
+  access: public
+  columns:
+  - name: year
+    data_tests: [unique, not_null]
+- name: oecd_transactions
+  access: public
+  columns:
+  - name: year
+    data_tests: [not_null]
+  - name: value
+    data_tests: [not_null]
+- name: oecd_multipliers
+  access: public
+  columns:
+  - name: area
+    data_tests:
+    - not_null
+    - relationships:
+        arguments:
+          to: ref('oecd_areas')
+          field: code
+  - name: industry
+    data_tests:
+    - not_null
+    - relationships:
+        arguments:
+          to: ref('oecd_industries')
+          field: code

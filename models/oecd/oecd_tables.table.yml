@@ -1,0 +1,16 @@
+schema: oecd
+name: tables
+title: ICIO の年の一覧
+description: |-
+  収録している OECD ICIO の年の一覧です。1 行が 1 年の表です。
+primary_key: [year]
+fields:
+  - name: year
+    title: 対象年
+  - name: edition
+    title: ICIO の版の年
+    description: 2025 年版など。版が変わると過去の年の値も改訂されます
+  - name: source_url
+    title: 出典の URL
+  - name: source_file
+    title: 出典のファイル名

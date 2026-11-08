@@ -1,0 +1,12 @@
+schema: oecd
+name: areas
+title: ICIO の国・地域
+description: |-
+  OECD ICIO が対象にする 80 の国・地域と、それ以外をまとめた Rest of the World（ROW）です。名前は出典の英語のままです。
+primary_key: [code]
+fields:
+  - name: code
+    title: 国・地域コード
+    description: ISO 3166-1 alpha-3（ROW は Rest of the World）
+  - name: name
+    title: 国・地域名

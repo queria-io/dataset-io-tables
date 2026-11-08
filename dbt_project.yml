@@ -19,3 +19,5 @@ models:
     +database: io_tables
     japan:
       +materialized: table
+    oecd:
+      +materialized: table
