@@ -9,7 +9,7 @@ with source as (
         cast(value_added_ratio as double) as value_added_ratio,
         cast(output_multiplier as double) as output_multiplier,
         cast(value_added_multiplier as double) as value_added_multiplier
-    from read_csv('data/japan/sector_multipliers.csv', header = true, all_varchar = true)
+    from read_csv('data/japan/sector_multipliers.csv', header = true, quote = '"', all_varchar = true)
 )
 
 select

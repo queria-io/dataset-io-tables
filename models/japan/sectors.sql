@@ -7,7 +7,7 @@ with source as (
         cast(position as integer) as position,
         code,
         name
-    from read_csv('data/japan/sectors.csv', header = true, all_varchar = true)
+    from read_csv('data/japan/sectors.csv', header = true, quote = '"', all_varchar = true)
 ),
 
 marks as (
@@ -16,7 +16,8 @@ marks as (
         side,
         -- 古い延長表は列の内生部門計を「中間需要計」と書いている
         min(position) filter (where name in ('内生部門計', '中間需要計')) as endogenous_total,
-        min(position) filter (where name = '国内生産額') as output
+        -- 1970 年基準の延長表は行の国内生産額を「生産額」と書いている
+        coalesce(min(position) filter (where name = '国内生産額'), min(position) filter (where name = '生産額')) as output
     from source
     group by table_id, side
 )

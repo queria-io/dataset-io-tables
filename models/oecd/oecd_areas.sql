@@ -3,4 +3,4 @@
 {{ config(alias='areas') }}
 
 select code, name
-from read_csv('data/oecd/areas.csv', header = true, all_varchar = true)
+from read_csv('data/oecd/areas.csv', header = true, quote = '"', all_varchar = true)

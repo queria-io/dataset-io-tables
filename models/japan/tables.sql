@@ -23,4 +23,4 @@ select
     nullif(source_unit, '') as source_unit,
     source_url,
     source_sheet
-from read_csv('data/japan/tables.csv', header = true, all_varchar = true)
+from read_csv('data/japan/tables.csv', header = true, quote = '"', all_varchar = true)

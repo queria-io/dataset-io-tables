@@ -7,4 +7,4 @@ select
     cast(edition as integer) as edition,
     source_url,
     source_file
-from read_csv('data/oecd/tables.csv', header = true, all_varchar = true)
+from read_csv('data/oecd/tables.csv', header = true, quote = '"', all_varchar = true)

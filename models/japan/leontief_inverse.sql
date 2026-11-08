@@ -7,7 +7,7 @@ with source as (
         col_code,
         cast("open" as double) as "open",
         cast(closed as double) as closed
-    from read_csv('data/japan/leontief_inverse.csv', header = true, all_varchar = true)
+    from read_csv('data/japan/leontief_inverse.csv', header = true, quote = '"', all_varchar = true)
 )
 
 select
