@@ -33,6 +33,8 @@ BASE_URL = f"https://webfs-sti.oecd.org/files/STI-PIE/ICIO/{EDITION}/"
 # OECD の配布サーバーはブラウザ以外からの取得を拒むので、同じファイル名で R2 に置いた写しから取る
 MIRROR_URL = f"https://assets.queria.io/sources/io_tables/oecd/{EDITION}/"
 ARCHIVES = ["1995-2000_SML.zip", "2001-2005_SML.zip", "2006-2010_SML.zip", "2011-2015_SML.zip", "2016-2022_SML.zip"]
+# 1 回のアップロードに収まらない大きさのファイルは、split で分けた .part00, .part01, … として置いている
+PARTS = {"2016-2022_SML.zip": 3}
 README = "ReadMe_ICIO_small.xlsx"
 USER_AGENT = "dataset-io-tables (+https://github.com/queria-io/dataset-io-tables)"
 CACHE_DIR = Path("data/raw/oecd")
@@ -51,8 +53,15 @@ def cached(name: str) -> Path:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = CACHE_DIR / name
     if not path.exists():
-        logger.info("  %s", MIRROR_URL + name)
-        download(MIRROR_URL + name, path, user_agent=USER_AGENT)
+        parts = [f"{name}.part{i:02d}" for i in range(PARTS[name])] if name in PARTS else [name]
+        for part in parts:
+            logger.info("  %s", MIRROR_URL + part)
+            download(MIRROR_URL + part, CACHE_DIR / part, user_agent=USER_AGENT)
+        if parts != [name]:
+            with replacing(path) as partial, partial.open("wb") as out:
+                for part in parts:
+                    out.write((CACHE_DIR / part).read_bytes())
+                    (CACHE_DIR / part).unlink()
     return path
 
 

@@ -15,7 +15,7 @@
 
 `oecd` スキーマは、OECD の [Inter-Country Input-Output (ICIO) Tables](https://www.oecd.org/en/data/datasets/inter-country-input-output-tables.html) 2025 年版（small version）から作っています。[OECD の利用条件](https://www.oecd.org/en/about/terms-conditions.html)に従い、商用を含めて利用できます。使うときは「OECD (2025), Inter-Country Input-Output Database, http://oe.cd/icio」と出典を書いてください。
 
-経済産業省のサイトと OECD の配布サーバーは自動の取得を受け付けないため、配布されているファイルをそのまま `https://assets.queria.io/sources/io_tables/` に置き、ビルドはそこから取得しています（パスとファイル名は出典と同じです）。
+経済産業省のサイトと OECD の配布サーバーは自動の取得を受け付けないため、配布されているファイルをそのまま `https://assets.queria.io/sources/io_tables/` に置き、ビルドはそこから取得しています（パスとファイル名は出典と同じです。1 回でアップロードできない大きさの ICIO の zip は、分割した `.part00` などのファイルとして置いています）。
 
 ## 収録範囲
 
