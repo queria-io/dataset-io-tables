@@ -4,9 +4,10 @@
 
 select
     cast(year as integer) as year,
-    nullif(row_area, '') as row_area,
+    -- TLS・VA の行は国を持たない。主キーに NULL を置けないので、SDMX の「該当なし」の符号 _Z を入れる
+    coalesce(nullif(row_area, ''), '_Z') as row_area,
     row_item,
-    nullif(col_area, '') as col_area,
+    coalesce(nullif(col_area, ''), '_Z') as col_area,
     col_item,
     value
 from read_parquet('data/oecd/transactions/*.parquet')

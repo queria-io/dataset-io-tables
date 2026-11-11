@@ -84,3 +84,4 @@ annotations:
         国をまたぐ波及（輸出入を通じた生産・付加価値の誘発）は oecd スキーマを使う。oecd.multipliers に国×産業ごとの
         誘発係数（全世界と国内）、oecd.transactions に取引額（百万米ドル、行が供給する国×産業、列が使う国×産業か最終需要）がある。
         国は ISO 3 文字コード（日本は JPN）、産業は oecd.industries のコード。
+        oecd.transactions の TLS・VA の行は row_area が _Z なので、国際取引を row_area <> col_area で集計するときは row_area <> '_Z' も付ける。
