@@ -7,7 +7,7 @@ description: |-
   - 行は「row_area の row_item 産業」か、TLS（純生産物税）・VA（付加価値）です。TLS と VA は row_area が `_Z`（該当なし）です
   - 列は「col_area の col_item 産業」の中間投入か、「col_area の最終需要」です。最終需要の項目は final_demand_items にあります
   - 値が 0 のセルは収録していません。産出額は multipliers の output にあります
-  - 行の国 ≠ 列の国の行が国際取引（輸出入）です
+  - row_area が `_Z` の行（TLS・VA）を除き、行の国 ≠ 列の国の行が国際取引（輸出入）です
 primary_key: [year, row_area, row_item, col_area, col_item]
 fields:
   - name: year
