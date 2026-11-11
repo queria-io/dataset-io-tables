@@ -4,7 +4,7 @@ title: ICIO の取引額
 description: |-
   OECD ICIO の取引額です。1 行が 1 年の (行, 列) 1 つです。単位は百万米ドル（名目）です。
 
-  - 行は「row_area の row_item 産業」か、TLS（純生産物税）・VA（付加価値）です。TLS と VA は row_area が NULL です
+  - 行は「row_area の row_item 産業」か、TLS（純生産物税）・VA（付加価値）です。TLS と VA は row_area が `_Z`（該当なし）です
   - 列は「col_area の col_item 産業」の中間投入か、「col_area の最終需要」です。最終需要の項目は final_demand_items にあります
   - 値が 0 のセルは収録していません。産出額は multipliers の output にあります
   - 行の国 ≠ 列の国の行が国際取引（輸出入）です
@@ -14,7 +14,7 @@ fields:
     title: 対象年
   - name: row_area
     title: 行の国・地域
-    description: 供給する側。TLS・VA の行は NULL
+    description: 供給する側。TLS・VA の行は `_Z`（該当なし）
     annotations: { queria: { semantic: { role: dimension } } }
   - name: row_item
     title: 行の産業・項目
