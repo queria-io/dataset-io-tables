@@ -11,20 +11,25 @@ ICIO は 81 の国・地域 (80 か国と Rest of the World) × 50 産業の国�
   逆行列そのものは 1 年 4,050 × 4,050 で大きいので収録しない
 
 入力: 年範囲ごとの zip (1995-2000_SML.zip など) と ReadMe。OECD の配布物と同じものを R2 に置いて取る
-出力: data/oecd/{areas,industries,tables}.csv、data/oecd/{transactions,multipliers}/<year>.parquet
+出力: data/oecd/{areas,industries,tables}.csv、data/oecd/{transactions,multipliers}/<year>.parquet、
+      data/oecd/source_file.ndjson (取得したファイルの記録。分割して置いたファイルは、分割ファイルごとの行と
+      つないだ zip の行 (url は NULL) を書く。表の行はつないだ zip の sha256 を指す)
 """
 
 import csv
+import hashlib
+import json
 import logging
 import re
 import zipfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 import duckdb
 import numpy as np
 import pandas as pd
 
-from shared.fetch import download, replacing
+from shared.fetch import fetch_file, replacing, write_atomic
 
 logger = logging.getLogger("pipelines")
 
@@ -36,6 +41,7 @@ ARCHIVES = ["1995-2000_SML.zip", "2001-2005_SML.zip", "2006-2010_SML.zip", "2011
 # 1 回のアップロードに収まらない大きさのファイルは、split で分けた .part00, .part01, … として置いている
 PARTS = {"2016-2022_SML.zip": 3}
 README = "ReadMe_ICIO_small.xlsx"
+PAGE_URL = "https://www.oecd.org/en/data/datasets/inter-country-input-output-tables.html"
 USER_AGENT = "dataset-io-tables (+https://github.com/queria-io/dataset-io-tables)"
 CACHE_DIR = Path("data/raw/oecd")
 OUTPUT_DIR = Path("data/oecd")
@@ -49,27 +55,52 @@ FINAL_DEMAND = {
 }
 
 
-def cached(name: str) -> Path:
+def fetch_parts(name: str, path: Path) -> list[dict]:
+    """ファイルを取得する。分割して置いたファイルは順に取ってつなぐ。取得の記録を返す。"""
+    if name not in PARTS:
+        logger.info("  %s", MIRROR_URL + name)
+        return [{"file": name, "page_url": PAGE_URL, **fetch_file(MIRROR_URL + name, path, user_agent=USER_AGENT, timeout=600)}]
+    part = path.with_name(path.name + ".fetching")
+    records = []
+    joined_hash = hashlib.sha256()
+    with replacing(path) as partial, partial.open("wb") as joined:
+        for i in range(PARTS[name]):
+            url = f"{MIRROR_URL}{name}.part{i:02d}"
+            logger.info("  %s", url)
+            records.append({"file": f"{name}.part{i:02d}", "page_url": PAGE_URL, **fetch_file(url, part, user_agent=USER_AGENT, timeout=600)})
+            with part.open("rb") as handle:
+                while block := handle.read(1 << 20):
+                    joined.write(block)
+                    joined_hash.update(block)
+            part.unlink()
+    retrieved_at = datetime.now(UTC).isoformat(timespec="seconds")
+    joined = {"url": None, "sha256": joined_hash.hexdigest(), "bytes": path.stat().st_size, "media_type": "application/zip", "retrieved_at": retrieved_at, "etag": None, "last_modified": None}
+    return [*records, {"file": name, "page_url": PAGE_URL, **joined}]
+
+
+def read_records(path: Path) -> dict[str, list[dict]]:
+    """前回の取得の記録を、ファイル名 (分割したものはつないだ名前) ごとに読む。"""
+    out: dict[str, list[dict]] = {}
+    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    for record in map(json.loads, lines):
+        out.setdefault(record["file"].split(".part")[0], []).append(record)
+    return out
+
+
+def cached(name: str, records: dict[str, list[dict]]) -> tuple[Path, str]:
+    """ファイルのパスと sha256 を返す。手元にあって取得の記録もあるファイルは取得しない。"""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = CACHE_DIR / name
-    if not path.exists():
-        parts = [f"{name}.part{i:02d}" for i in range(PARTS[name])] if name in PARTS else [name]
-        for part in parts:
-            logger.info("  %s", MIRROR_URL + part)
-            download(MIRROR_URL + part, CACHE_DIR / part, user_agent=USER_AGENT)
-        if parts != [name]:
-            with replacing(path) as partial, partial.open("wb") as out:
-                for part in parts:
-                    out.write((CACHE_DIR / part).read_bytes())
-                    (CACHE_DIR / part).unlink()
-    return path
+    if not (path.exists() and name in records):
+        records[name] = fetch_parts(name, path)
+    return path, records[name][-1]["sha256"]
 
 
-def read_readme() -> tuple[list[dict], list[dict]]:
+def read_readme(path: Path) -> tuple[list[dict], list[dict]]:
     """ReadMe の Area_Activities シートから国・地域と産業の一覧を読む。
 
     見出しの行は「Code, Country, …, Code2, Country2, …, Code, Industry, ISIC Rev.4」。"""
-    sheet = pd.read_excel(cached(README), sheet_name="Area_Activities", header=None, dtype=str)
+    sheet = pd.read_excel(path, sheet_name="Area_Activities", header=None, dtype=str)
     head = next(i for i, row in sheet.iterrows() if "Industry" in row.values)
     columns = list(sheet.iloc[head])
     pos = {name: [j for j, c in enumerate(columns) if c == name] for name in ("Code", "Country", "Code2", "Country2", "Industry", "ISIC Rev.4")}
@@ -168,17 +199,23 @@ def write_csv(path: Path, rows: list[dict]) -> None:
 
 
 def download_oecd(output_dir: Path = OUTPUT_DIR) -> None:
-    areas, industries = read_readme()
-    write_csv(output_dir / "areas.csv", areas)
-    write_csv(output_dir / "industries.csv", industries)
+    records_path = output_dir / "source_file.ndjson"
+    records = read_records(records_path)
+    readme, readme_sha256 = cached(README, records)
+    areas, industries = read_readme(readme)
+    write_csv(output_dir / "areas.csv", [{**a, "source_sha256": readme_sha256} for a in areas])
+    write_csv(output_dir / "industries.csv", [{**i, "source_sha256": readme_sha256} for i in industries])
     write_csv(output_dir / "final_demand.csv", [{"code": c, "name": n} for c, n in FINAL_DEMAND.items()])
     tables = []
     for year, (archive, name) in years().items():
-        with zipfile.ZipFile(cached(archive)) as z, z.open(name) as f:
+        path, sha256 = cached(archive, records)
+        with zipfile.ZipFile(path) as z, z.open(name) as f:
             frame = pd.read_csv(f, index_col=0)
         transactions, multipliers = derive(frame, year)
         write_parquet(transactions, output_dir / "transactions" / f"{year}.parquet")
         write_parquet(multipliers, output_dir / "multipliers" / f"{year}.parquet")
-        tables.append({"year": year, "edition": EDITION, "source_url": BASE_URL + archive, "source_file": name})
+        tables.append({"year": year, "edition": EDITION, "source_url": BASE_URL + archive, "source_file": name, "source_sha256": sha256})
         logger.info("  %d: transactions %d", year, len(transactions))
     write_csv(output_dir / "tables.csv", tables)
+    lines = "".join(json.dumps(r, ensure_ascii=False) + "\n" for name in sorted(records) for r in records[name])
+    write_atomic(records_path, lines.encode("utf-8"))

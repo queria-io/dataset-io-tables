@@ -15,14 +15,18 @@ e-Stat と総務省のサイトが配る Excel は、表ごとに見出しの行
 統合分類 (小・中・大) への対応を書いた「分類表」がある。基本分類の表と、内生部門を分類表で統合分類に
 集計した表を作る。最終需要と粗付加価値の部門は基本分類のまま残す。
 
+各行に、読んだファイルの sha256 (source_sha256)・シート名 (source_sheet)・Excel の行番号 (source_row) を付ける。
+取得には shared.fetch.fetch_file を使い、取得の記録を source_file.ndjson に書く。
+
 出力:
-  data/japan/tables.csv        1 行 = 1 表
-  data/japan/sectors.csv       1 行 = 1 表の行部門または列部門 1 つ
-  data/japan/transactions.csv  1 行 = 1 表の 1 セル
+  data/japan/tables.csv          1 行 = 1 表
+  data/japan/sectors.csv         1 行 = 1 表の行部門または列部門 1 つ
+  data/japan/transactions.csv    1 行 = 1 表の 1 セル
+  data/japan/source_file.ndjson  1 行 = 取得した 1 ファイル
 """
 
 import csv
-import io
+import json
 import logging
 import re
 import unicodedata
@@ -31,7 +35,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from shared.fetch import fetch, replacing
+from shared.fetch import fetch_file, replacing, write_atomic
 
 logger = logging.getLogger("pipelines")
 
@@ -233,8 +237,9 @@ def sheet_year(name: str, series: str) -> tuple[int, str]:
     return year, price
 
 
-def parse_matrix(frame: pd.DataFrame) -> tuple[list[tuple[str, str]], list[tuple[str, str]], list[tuple[str, str, float]]]:
-    """(行部門, 列部門, セル) を返す。部門は (コード, 名前)、セルは (行コード, 列コード, 値)。"""
+def parse_matrix(frame: pd.DataFrame):
+    """(行部門, 列部門, セル, 行部門の Excel の行番号, 列部門の見出しの Excel の行番号) を返す。
+    部門は (コード, 名前)、セルは (行コード, 列コード, 値)。行番号は frame の行の位置 + 1。"""
     cells = frame.map(norm)
     values = cells.values
 
@@ -274,7 +279,10 @@ def parse_matrix(frame: pd.DataFrame) -> tuple[list[tuple[str, str]], list[tuple
         for j in columns
         if (v := number(frame.iat[i, j])) is not None and v != 0
     ]
-    return [(c, n) for _, c, n in rows], list(columns.values()), data
+    lines = {}
+    for i, c, _ in rows:
+        lines.setdefault(c, i + 1)
+    return [(c, n) for _, c, n in rows], list(columns.values()), data, lines, head + 1
 
 
 def classification_levels(frame: pd.DataFrame) -> list[tuple[str, dict, dict]]:
@@ -333,14 +341,16 @@ def aggregate(rows, cols, data, row_map: dict, col_map: dict):
     return new_rows, new_cols, [(r, c, v) for (r, c), v in sums.items() if v != 0]
 
 
-def read_book(source: Source) -> dict[str, pd.DataFrame]:
+def read_book(source: Source, previous: dict[str, dict], records: dict[str, dict]) -> tuple[dict[str, pd.DataFrame], str]:
+    """Excel を取得して読み、(シート名 → シート, ファイルの sha256) を返す。取得の記録を records に入れる。
+    手元にファイルがあり、ETag・Last-Modified が前回から変わっていなければ取得しない。"""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = CACHE_DIR / source.file_id
-    if not path.exists():
-        url = source.url.replace(METI, METI_MIRROR)
+    url = source.url.replace(METI, METI_MIRROR)
+    if url not in records:
         logger.info("  %s", url)
-        path.write_bytes(fetch(url, user_agent=USER_AGENT, timeout=300))
-    return pd.read_excel(path, sheet_name=None, header=None, dtype=object)
+        records[url] = fetch_file(url, path, previous=previous.get(url), user_agent=USER_AGENT, timeout=300)
+    return pd.read_excel(path, sheet_name=None, header=None, dtype=object), records[url]["sha256"]
 
 
 def sector_count(rows: list[tuple[str, str]], cols: list[tuple[str, str]]) -> int | None:
@@ -371,20 +381,24 @@ def table_id(source: Source, classification: str, year: int, price: str, sectors
 
 
 def matrices(source: Source, book: dict[str, pd.DataFrame]):
-    """(シート, 分類の名前, 行部門, 列部門, セル) を表ごとに返す。"""
+    """(シート, 分類の名前, 行部門, 列部門, セル, 行部門の行番号, 列部門の見出しの行番号) を表ごとに返す。
+    統合分類に集計した表の内生部門は複数の行の和なので、行番号を持たない (最終需要・粗付加価値の部門は元の行)。"""
     if "分類表" in book:  # 1999 年以前の延長表
-        rows, cols, data = parse_matrix(book["Sheet1"])
-        yield "Sheet1", source.classification, rows, cols, data
+        rows, cols, data, lines, head = parse_matrix(book["Sheet1"])
+        yield "Sheet1", source.classification, rows, cols, data, lines, head
         for name, row_map, col_map in classification_levels(book["分類表"]):
-            yield "Sheet1", name, *aggregate(rows, cols, data, row_map, col_map)
+            k = [n for _, n in rows].index("内生部門計")
+            rest = {c: lines[c] for c, _ in rows[k:]}
+            yield "Sheet1", name, *aggregate(rows, cols, data, row_map, col_map), rest, head
         return
     for sheet, frame in list(book.items())[:1] if source.kind == "extended" else book.items():
         yield sheet, source.classification, *parse_matrix(frame)
 
 
-def extract(source: Source):
-    book = read_book(source)
-    for sheet, classification, rows, cols, data in matrices(source, book):
+def extract(source: Source, previous: dict[str, dict], records: dict[str, dict]):
+    """1 つの Excel から (表, 部門, 取引額) を表ごとに返す。各行に元のファイル・シート・行番号を付ける。"""
+    book, sha256 = read_book(source, previous, records)
+    for sheet, classification, rows, cols, data, lines, head in matrices(source, book):
         if source.kind == "extended":
             year, price = source.year, source.price
         elif source.kind == "national":
@@ -410,13 +424,19 @@ def extract(source: Source):
             "source_unit": unit or "",
             "source_url": source.url,
             "source_sheet": sheet,
+            "source_sha256": sha256,
         }
+        origin = {"source_sha256": sha256, "source_sheet": sheet}
         sector_rows = [
-            {"table_id": tid, "side": side, "position": k, "code": code, "name": name}
+            {"table_id": tid, "side": side, "position": k, "code": code, "name": name, **origin,
+             "source_row": lines.get(code) if side == "row" else head}
             for side, seq in (("row", rows), ("col", cols))
             for k, (code, name) in enumerate(seq, 1)
         ]
-        cells = [{"table_id": tid, "row_code": r, "col_code": c, "value": round(v * scale, 6)} for r, c, v in data]
+        cells = [
+            {"table_id": tid, "row_code": r, "col_code": c, "value": round(v * scale, 6), **origin, "source_row": lines.get(r)}
+            for r, c, v in data
+        ]
         yield table, sector_rows, cells
 
 
@@ -431,11 +451,19 @@ def write_csv(path: Path, fields: list[str], rows) -> int:
     return n
 
 
+def read_records(path: Path) -> dict[str, dict]:
+    """前回の取得の記録 (source_file.ndjson) を url ごとに返す。"""
+    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    return {r["url"]: r for r in map(json.loads, lines)}
+
+
 def download_japan(output_dir: Path = OUTPUT_DIR) -> None:
+    previous = read_records(output_dir / "source_file.ndjson")
+    records: dict[str, dict] = {}
     tables, sectors, cells = [], [], []
     for source in SOURCES:
         logger.info("%s %s %s %s", source.kind, source.series, source.price_basis, source.classification)
-        for table, s, c in extract(source):
+        for table, s, c in extract(source, previous, records):
             if any(t["table_id"] == table["table_id"] for t in tables):
                 raise SystemExit(f"table_id が重なった: {table['table_id']}")
             tables.append(table)
@@ -445,4 +473,5 @@ def download_japan(output_dir: Path = OUTPUT_DIR) -> None:
     write_csv(output_dir / "tables.csv", list(tables[0]), tables)
     write_csv(output_dir / "sectors.csv", list(sectors[0]), sectors)
     n = write_csv(output_dir / "transactions.csv", list(cells[0]), cells)
-    logger.info("  tables: %d, sectors: %d, transactions: %d", len(tables), len(sectors), n)
+    write_atomic(output_dir / "source_file.ndjson", "".join(json.dumps({**r, "page_url": None}, ensure_ascii=False) + "\n" for r in records.values()))
+    logger.info("  files: %d, tables: %d, sectors: %d, transactions: %d", len(records), len(tables), len(sectors), n)

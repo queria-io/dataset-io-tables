@@ -1,0 +1,4 @@
+schema: oecd
+name: raw_oecd_source_file
+description: ICIO のファイルを取得した記録を、取得のときに書いたまま読んだもの
+annotations: { queria: { published: false } }

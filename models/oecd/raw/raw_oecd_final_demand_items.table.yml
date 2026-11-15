@@ -1,0 +1,4 @@
+schema: oecd
+name: raw_oecd_final_demand_items
+description: pipelines が書いた data/oecd/final_demand.csv を、列と値を変えずに読んだもの（ICIO の最終需要の項目）
+annotations: { queria: { published: false } }

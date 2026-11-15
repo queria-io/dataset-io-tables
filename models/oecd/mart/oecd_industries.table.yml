@@ -1,0 +1,16 @@
+schema: oecd
+name: industries
+title: ICIO の産業
+description: |-
+  OECD ICIO の 50 産業です。ISIC Rev.4 を統合した分類で、名前は出典の英語のままです。
+primary_key: [code]
+fields:
+  - name: code
+    title: 産業コード
+  - name: name
+    title: 産業名
+  - name: isic
+    title: 対応する ISIC Rev.4 の部門
+  - name: source_sha256
+    title: 元のファイル
+    description: 読んだ ReadMe（ReadMe_ICIO_small.xlsx）の sha256。source_file の sha256 を指す
