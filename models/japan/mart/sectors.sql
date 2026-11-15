@@ -1,13 +1,7 @@
-{# 表ごとの行部門と列部門。1 行が 1 表の 1 部門。pipelines/japan.py が data/japan/sectors.csv に書き出す。 #}
+{# 表ごとの行部門と列部門。1 行が 1 表の 1 部門。 #}
 
 with source as (
-    select
-        table_id,
-        side,
-        cast(position as integer) as position,
-        code,
-        name
-    from read_csv('data/japan/sectors.csv', header = true, quote = '"', all_varchar = true)
+    select * from {{ ref('stg_sectors') }}
 ),
 
 marks as (

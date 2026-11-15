@@ -18,6 +18,21 @@ models:
   io_tables:
     +database: io_tables
     japan:
-      +materialized: table
+      raw:
+        +materialized: table
+      stg:
+        +materialized: view
+      mart:
+        +materialized: table
     oecd:
-      +materialized: table
+      raw:
+        +materialized: table
+        # 取引額は 2.9 億行あるので、raw と stg はテーブルにせず mart の中で展開する
+        raw_oecd_transactions:
+          +materialized: ephemeral
+      stg:
+        +materialized: view
+        stg_oecd_transactions:
+          +materialized: ephemeral
+      mart:
+        +materialized: table

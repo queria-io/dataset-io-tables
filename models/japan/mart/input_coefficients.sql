@@ -1,0 +1,16 @@
+{# 投入係数。1 行が 1 表の (行部門, 列部門) 1 つ。pipelines/derive.py が計算する（raw_input_coefficients）。 #}
+
+with source as (
+    select * from {{ ref('stg_input_coefficients') }}
+)
+
+select
+    source.table_id,
+    source.row_code,
+    r.name as row_name,
+    source.col_code,
+    c.name as col_name,
+    source.value
+from source
+join {{ ref('stg_sectors') }} as r on r.table_id = source.table_id and r.side = 'row' and r.code = source.row_code
+join {{ ref('stg_sectors') }} as c on c.table_id = source.table_id and c.side = 'col' and c.code = source.col_code

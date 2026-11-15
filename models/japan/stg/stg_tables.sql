@@ -1,4 +1,4 @@
-{# 産業連関表・接続産業連関表・延長産業連関表の一覧。1 行が 1 表。pipelines/japan.py が data/japan/tables.csv に書き出す。 #}
+{# 表の一覧に型を付け、表の名前（title）を組み立てる。 #}
 
 select
     table_id,
@@ -23,4 +23,4 @@ select
     nullif(source_unit, '') as source_unit,
     source_url,
     source_sheet
-from read_csv('data/japan/tables.csv', header = true, quote = '"', all_varchar = true)
+from {{ ref('raw_tables') }}
