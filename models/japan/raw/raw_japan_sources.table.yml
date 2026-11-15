@@ -1,0 +1,4 @@
+schema: japan
+name: raw_japan_sources
+description: 取得する産業連関表の配布物の一覧。1 行が 1 つの Excel で、表の種類・時点・分類・価格と、取得したファイルの sha256 を持つ
+annotations: { queria: { published: false } }

@@ -1,0 +1,4 @@
+schema: japan
+name: raw_japan_source_file
+description: 産業連関表の Excel を取得した記録を、取得のときに書いたまま読んだもの
+annotations: { queria: { published: false } }

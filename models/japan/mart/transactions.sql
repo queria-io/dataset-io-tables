@@ -11,7 +11,10 @@ select
     r.name as row_name,
     source.col_code,
     c.name as col_name,
-    source.value
+    source.value,
+    source.source_sha256,
+    source.source_sheet,
+    source.source_row
 from source
 join {{ ref('stg_sectors') }} as r on r.table_id = source.table_id and r.side = 'row' and r.code = source.row_code
 join {{ ref('stg_sectors') }} as c on c.table_id = source.table_id and c.side = 'col' and c.code = source.col_code

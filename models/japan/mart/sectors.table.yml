@@ -27,3 +27,12 @@ fields:
   - name: is_total
     title: 計の部門
     description: 名前が「計」「合計」で終わる部門。合計するときは除きます
+  - name: source_sha256
+    title: 元のファイル
+    description: 部門を読んだファイルの sha256。source_file の sha256 を指す
+  - name: source_sheet
+    title: 元のシート
+    description: 部門を読んだ Excel のシート名
+  - name: source_row
+    title: 元の行番号
+    description: 部門名を読んだ Excel の行番号（1 始まり）。列部門は見出しの行。1999 年以前の延長表の統合分類の内生部門の行部門は、基本分類の複数の行をまとめた部門なので NULL

@@ -1,7 +1,7 @@
-{# 部門ごとの国内生産額・輸入係数・粗付加価値率・誘発係数。1 行が 1 表の 1 部門。pipelines/derive.py が計算する（raw_sector_multipliers）。 #}
+{# 部門ごとの国内生産額・輸入係数・粗付加価値率・誘発係数。1 行が 1 表の 1 部門。pipelines/derive.py が計算する（stg_japan_derived）。 #}
 
 with source as (
-    select * from {{ ref('stg_sector_multipliers') }}
+    select * from {{ ref('stg_japan_derived') }} where part = 'multiplier'
 )
 
 select

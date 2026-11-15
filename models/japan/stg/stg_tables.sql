@@ -9,7 +9,7 @@ select
     cast(nullif(real_base_year, '') as integer) as real_base_year,
     price_basis,
     classification,
-    cast(nullif(sector_count, '') as integer) as sector_count,
+    cast(sector_count as integer) as sector_count,
     concat_ws(' ',
         case kind
             when 'national' then year || '年 産業連関表'
@@ -22,5 +22,7 @@ select
     ) as title,
     nullif(source_unit, '') as source_unit,
     source_url,
-    source_sheet
-from {{ ref('raw_tables') }}
+    source_sheet,
+    source_sha256
+from {{ ref('stg_japan_parsed') }}
+where part = 'table'

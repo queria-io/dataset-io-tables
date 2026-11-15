@@ -7,6 +7,9 @@ io_tables:
       database: io_tables
       schema: main
       threads: 1
+      # dbt の Python モデルが pipelines/ のモジュールを読めるようにする
+      module_paths:
+        - "."
       extensions:
         - httpfs
         - ducklake

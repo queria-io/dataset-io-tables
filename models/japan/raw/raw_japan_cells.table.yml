@@ -1,0 +1,4 @@
+schema: japan
+name: raw_japan_cells
+description: 取得した産業連関表の Excel の空でないセル。1 行が 1 セルで、ファイルの sha256・シート名・行番号・列番号と、数値か文字の値を持つ
+annotations: { queria: { published: false } }

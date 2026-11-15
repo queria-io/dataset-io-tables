@@ -7,3 +7,6 @@ io_tables:
       path: target/io_tables.duckdb
       schema: main
       threads: 1
+      # dbt の Python モデルが pipelines/ のモジュールを読めるようにする
+      module_paths:
+        - "."

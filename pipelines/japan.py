@@ -1,37 +1,25 @@
-"""総務省ほか「産業連関表」「接続産業連関表」と経済産業省「延長産業連関表」の取引基本表を縦長の CSV にする。
+"""総務省ほか「産業連関表」「接続産業連関表」と経済産業省「延長産業連関表」の取引基本表の Excel を取得し、
+空でないセルを 1 行ずつの Parquet にする。表・部門・取引額の組み立ては dbt (stg_japan_parsed、
+pipelines/japan_parse.py) が行う。
 
-e-Stat と総務省のサイトが配る Excel は、表ごとに見出しの行数や位置が違うが、どれも
-「列部門のコードの行 → 列部門の名前の行 → (行部門のコード, 行部門の名前, 値...) の行」
-という形をしている。コードの行を探し、1 セル = 1 行 (行部門 × 列部門 × 値) にする。
-空欄と 0 は書かない（値の無いセルは 0）。
-
-接続産業連関表は 1 つの Excel に 3 時点 (古い 2 時点は名目と実質) がシートで分かれて入っている。
-シート名から年と名目・実質を読む。
-
-延長産業連関表は 1 年・1 分類・名目か実質ごとに 1 つの Excel で、取引額のシートの次に逆行列のシートがある。
-取引額のシート (先頭) だけを読む。
-
-1999 年以前の延長表は基本分類 (名目) だけで、Excel には取引額の「Sheet1」と、基本分類から経済産業省の
-統合分類 (小・中・大) への対応を書いた「分類表」がある。基本分類の表と、内生部門を分類表で統合分類に
-集計した表を作る。最終需要と粗付加価値の部門は基本分類のまま残す。
+取得には shared.fetch.fetch_file を使い、取得の記録を source_file.parquet に書く。前回の記録と手元の
+ファイルがあれば、ETag・Last-Modified が変わっていないときはダウンロードをスキップする。
 
 出力:
-  data/japan/tables.csv        1 行 = 1 表
-  data/japan/sectors.csv       1 行 = 1 表の行部門または列部門 1 つ
-  data/japan/transactions.csv  1 行 = 1 表の 1 セル
+  data/japan/source_file.parquet  1 行 = 取得した 1 ファイル (README「元のファイル」の source_file)
+  data/japan/sources.parquet      1 行 = 1 つの配布物 (表の種類・時点・分類と、ファイルの sha256)
+  data/japan/cells.parquet        1 行 = 1 つの空でないセル (ファイルの sha256・シート・行番号・列番号・値)
 """
 
-import csv
-import io
 import logging
-import re
-import unicodedata
-from dataclasses import dataclass
+from dataclasses import asdict
 from pathlib import Path
 
+import duckdb
 import pandas as pd
 
-from shared.fetch import fetch, replacing
+from pipelines.japan_parse import Source
+from shared.fetch import fetch_file, replacing
 
 logger = logging.getLogger("pipelines")
 
@@ -39,22 +27,6 @@ USER_AGENT = "dataset-io-tables (+https://github.com/queria-io/dataset-io-tables
 OUTPUT_DIR = Path("data/japan")
 CACHE_DIR = Path("data/raw")
 ESTAT = "https://www.e-stat.go.jp/stat-search/file-download?statInfId={}&fileKind=0"
-
-
-@dataclass(frozen=True)
-class Source:
-    kind: str  # national | linked | extended
-    series: str  # 全国表は年、接続表は対象の 3 時点 (2011-2015-2020)、延長表は基準年
-    price_basis: str  # producer | purchaser
-    classification: str  # 部門分類の名前 (統合大分類 など)
-    url: str
-    year: int | None = None  # 延長表の対象年
-    price: str = "nominal"  # 延長表の名目・実質
-
-    @property
-    def file_id(self) -> str:
-        match = re.search(r"statInfId=(\d+)", self.url)
-        return match.group(1) if match else self.url.rsplit("/", 1)[-1]
 
 
 def estat(stat_inf_id: str) -> str:
@@ -99,7 +71,7 @@ def meti(base: int, small: str, large: str, files: dict[int, tuple[str, str, str
 
 def basic(base: int, prefix: str, years: list[int]) -> list[Source]:
     """1999 年以前の延長表 (基本分類、名目)。ファイル名の年は和暦 (s48 = 昭和48年、h04 = 平成4年)。"""
-    era = lambda year: f"s{year - 1925}" if year < 1989 else f"h{year - 1988:02d}"  # noqa: E731
+    era = lambda year: f"s{year - 1925}" if year < 1989 else f"h{year - 1988:02d}"
     return [Source("extended", str(base), "producer", "基本分類", f"{METI}entyoio/result/base_{prefix}/{prefix}_{era(year)}uio.xlsx", year) for year in years]
 
 
@@ -185,264 +157,65 @@ SOURCES = [
     }),
 ]
 
-CODE = re.compile(r"^\d{1,7}$")
-NUMBER = re.compile(r"^-?[\d.,]+$")
-UNITS = {"100万円": 1, "百万円": 1, "10億円": 1000, "十億円": 1000}
-# 年号の 2 桁 (シート名・タイトル) → 西暦
-ERA_YEARS = {
-    "60": 1985, "昭和60": 1985, "2": 1990, "平成2": 1990, "7": 1995, "H7": 1995, "平成7": 1995,
-    "12": 2000, "H12": 2000, "平成12": 2000, "H17": 2005, "平成17": 2005,
-    "H23": 2011, "平成23": 2011, "H27": 2015, "平成27": 2015, "R02": 2020, "令和2": 2020,
-}
+
+def fetch_url(source: Source) -> str:
+    return source.url.replace(METI, METI_MIRROR)
 
 
-def norm(value) -> str:
-    if value is None or (isinstance(value, float) and pd.isna(value)):
-        return ""
-    if isinstance(value, float) and value.is_integer():
-        value = int(value)
-    text = unicodedata.normalize("NFKC", str(value))
-    return re.sub(r"[\s　]", "", text)
-
-
-def number(value) -> float | None:
-    if isinstance(value, (int, float)) and not pd.isna(value):
-        return float(value)
-    text = norm(value).replace(",", "")
-    return float(text) if NUMBER.match(text) else None
-
-
-def find_unit(cells: pd.DataFrame) -> str | None:
-    for text in cells.iloc[:12].values.ravel():
-        match = re.search(r"単位[:：]?(\d+万円|百万円|\d+億円|十億円)", text)
-        if match:
-            return match.group(1)
-    return None
-
-
-def sheet_year(name: str, series: str) -> tuple[int, str]:
-    """接続表のシート名 (６０年名目・H7実質・統合大分類平成12年 名目・R02名目) から (年, nominal|real)。"""
-    text = norm(name)
-    price = "real" if "実質" in text else "nominal"
-    match = re.search(r"(昭和60|平成\d+|令和2|H\d+|R02|\d+)年?", re.sub(r"^(統合[大中小]分類|ひな型)", "", text))
-    if not match or match.group(1) not in ERA_YEARS:
-        raise SystemExit(f"{series}: シート名 {name} から年を読めない")
-    year = ERA_YEARS[match.group(1)]
-    if str(year) not in series.split("-"):
-        raise SystemExit(f"{series}: シート {name} の年 {year} が接続表の時点に無い")
-    return year, price
-
-
-def parse_matrix(frame: pd.DataFrame) -> tuple[list[tuple[str, str]], list[tuple[str, str]], list[tuple[str, str, float]]]:
-    """(行部門, 列部門, セル) を返す。部門は (コード, 名前)、セルは (行コード, 列コード, 値)。"""
-    cells = frame.map(norm)
-    values = cells.values
-
-    def is_name(text: str) -> bool:
-        return bool(text) and not NUMBER.match(text)
-
-    # 列部門のコードの行: 直下の行の同じ列に名前が並ぶコードが最も多い行
-    def score(r: int) -> int:
-        return sum(bool(CODE.match(a)) and is_name(b) for a, b in zip(values[r][2:], values[r + 1][2:]))
-
-    head = max(range(min(30, len(values) - 1)), key=score)
-    first = min(j for j in range(2, cells.shape[1]) if CODE.match(values[head][j]) and is_name(values[head + 1][j]))
-    code_col = first - 2
-    # 列部門の名前が 2 行に分かれている表 (延長表の「(控除)」の下に「輸入計」) は、続きの行を名前につなげる
-    below = values[head + 2] if head + 2 < len(values) else [""] * cells.shape[1]
-    names = [a + b if a == "(控除)" and is_name(b) else a for a, b in zip(values[head + 1], below)]
-    # コードの無い部門 (古い表の計の行・列など) は名前をコードの代わりにする
-    columns = {
-        j: (values[head][j] or names[j], names[j])
-        for j in range(first, cells.shape[1])
-        if is_name(values[head + 1][j]) and (CODE.match(values[head][j]) or not values[head][j])
-    }
-    if len(columns) < 10:
-        raise SystemExit(f"列部門の見出しが見つからない (行 {head})")
-
-    def has_values(i: int) -> bool:
-        return any(number(frame.iat[i, j]) is not None for j in columns)
-
-    rows = [
-        (i, values[i][code_col] or values[i][code_col + 1], values[i][code_col + 1])
-        for i in range(head + 2, len(values))
-        if is_name(values[i][code_col + 1]) and (CODE.match(values[i][code_col]) or not values[i][code_col]) and has_values(i)
-    ]
-    data = [
-        (rc, columns[j][0], v)
-        for i, rc, _ in rows
-        for j in columns
-        if (v := number(frame.iat[i, j])) is not None and v != 0
-    ]
-    return [(c, n) for _, c, n in rows], list(columns.values()), data
-
-
-def classification_levels(frame: pd.DataFrame) -> list[tuple[str, dict, dict]]:
-    """分類表から、統合分類ごとに (分類の名前, 行コード → (コード, 名前), 列コード → (コード, 名前)) を返す。
-
-    分類表は「列コード, 列部門名, 行コード, 行部門名, (統合分類のコード, 統合名) ...」の形。1 つの列部門が
-    複数の行部門に分かれるので、列コードは最初の行だけ書かれている表もある。大分類だけ列用と行用に分かれた
-    表 (統合大分類(47部門)列・統合大分類(47部門)行) もある。コードの末尾の P (屑・副産物の行) は除く。
-    分類表のコードが取引額のシートと違う部門 (1970 年基準の不動産賃貸料) があるので、部門名でも引けるようにする。"""
-    values = frame.map(norm).values
-    head = next(i for i in range(10) if any(v.startswith("統合") for v in values[i]))
-    groups: dict[str, list[int]] = {}
-    for j, v in enumerate(values[head]):
-        if v.startswith("統合"):
-            groups.setdefault(re.sub(r"[列行]$", "", v), []).append(j)
-    digits = lambda text: re.sub(r"\D", "", text)  # noqa: E731
-    levels = []
-    for name, columns in groups.items():
-        rows, cols = {}, {}
-        for line in values[head + 2 :]:
-            # 列用と行用がある分類は、行部門には最後 (行用)、列部門には最初 (列用) を使う
-            row_j = next((j for j in reversed(columns) if line[j]), None)
-            col_j = next((j for j in columns if line[j]), None)
-            if line[2] and row_j is not None:
-                rows[digits(line[2])] = rows[line[3]] = (line[row_j], line[row_j + 1])
-            if line[0] and col_j is not None:
-                cols.setdefault(digits(line[0]), (line[col_j], line[col_j + 1]))
-                cols.setdefault(line[1], (line[col_j], line[col_j + 1]))
-        levels.append((name.replace("(", "（").replace(")", "）"), rows, cols))
-    return levels
-
-
-def aggregate(rows, cols, data, row_map: dict, col_map: dict):
-    """内生部門 (内生部門計より前) を統合分類に集計する。それ以外の部門はそのまま。"""
-    def split(seq, mapping, side):
-        names = [n for _, n in seq]
-        k = names.index("内生部門計")
-        missing = [(c, n) for c, n in seq[:k] if c not in mapping and n not in mapping]
-        if missing:
-            raise SystemExit(f"分類表に無い{side}部門: {missing[:5]}")
-        return {c: mapping.get(c) or mapping[n] for c, n in seq[:k]}, seq[k:]
-
-    row_to, row_rest = split(rows, row_map, "行")
-    col_to, col_rest = split(cols, col_map, "列")
-    # 同じコードの統合部門は名前の書き方が行ごとに違うことがあるので、コードでまとめ、名前は分類表で最初のもの
-    names = dict(reversed(list(row_map.values()) + list(col_map.values())))
-    order = list(dict.fromkeys(code for code, _ in row_map.values()))  # 分類表の並び
-    used_rows = {code for code, _ in row_to.values()}
-    used_cols = {code for code, _ in col_to.values()}
-    new_rows = [(c, names[c]) for c in order if c in used_rows] + row_rest
-    new_cols = [(c, names[c]) for c in order if c in used_cols] + col_rest
-    sums: dict[tuple[str, str], float] = {}
-    for r, c, v in data:
-        key = (row_to[r][0] if r in row_to else r, col_to[c][0] if c in col_to else c)
-        sums[key] = sums.get(key, 0.0) + v
-    return new_rows, new_cols, [(r, c, v) for (r, c), v in sums.items() if v != 0]
-
-
-def read_book(source: Source) -> dict[str, pd.DataFrame]:
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    path = CACHE_DIR / source.file_id
+def previous_records(path: Path) -> dict[str, dict]:
     if not path.exists():
-        url = source.url.replace(METI, METI_MIRROR)
-        logger.info("  %s", url)
-        path.write_bytes(fetch(url, user_agent=USER_AGENT, timeout=300))
-    return pd.read_excel(path, sheet_name=None, header=None, dtype=object)
+        return {}
+    frame = duckdb.sql(f"SELECT * EXCLUDE (page_url) FROM read_parquet('{path}')").df()
+    return {r["url"]: r for r in frame.astype(object).where(frame.notna(), None).to_dict("records")}
 
 
-def sector_count(rows: list[tuple[str, str]], cols: list[tuple[str, str]]) -> int | None:
-    """内生部門の数。行と列で部門が同じ (正方の) 表だけ数える。"""
-    def endogenous(seq):
-        out = []
-        for code, name in seq:
-            if "内生部門計" in name or name == "中間需要計":  # 古い延長表の列は「中間需要計」
-                return out
-            out.append(code)
-        return None
-
-    r, c = endogenous(rows), endogenous(cols)
-    return len(r) if r is not None and r == c else None
-
-
-def table_id(source: Source, classification: str, year: int, price: str, sectors: int | None) -> str:
-    # 行と列の部門が違う統合小分類 (屑の行がある) は、分類の名前の部門数を使う
-    named = re.search(r"（(\d+)部門）", classification)
-    size = "basic" if classification == "基本分類" else str(sectors or (named.group(1) if named else ""))
-    prefix = {"national": "national", "extended": f"extended{source.series}"}.get(source.kind) or f"linked{source.series.split('-')[-1]}"
-    parts = [prefix, str(year), size]
-    if price == "real":
-        parts.append("real")
-    if source.price_basis == "purchaser":
-        parts.append("purchaser")
-    return "_".join(parts)
+def cells(path: Path, sha256: str) -> pd.DataFrame:
+    """Excel の空でないセル。行番号・列番号は 1 から (pandas の行・列の位置 + 1)。
+    数値のセルは number に、それ以外は text に入れる。シートの順番も sheet_position に持つ。"""
+    frames = []
+    book = pd.read_excel(path, sheet_name=None, header=None, dtype=object)
+    for position, (sheet, frame) in enumerate(book.items(), 1):
+        stacked = frame.stack().dropna()
+        values = stacked.to_list()
+        is_number = [isinstance(v, (int, float)) and not isinstance(v, bool) for v in values]
+        frames.append(
+            pd.DataFrame(
+                {
+                    "source_sha256": sha256,
+                    "source_sheet": sheet,
+                    "sheet_position": position,
+                    "source_row": stacked.index.get_level_values(0).to_numpy() + 1,
+                    "source_col": stacked.index.get_level_values(1).to_numpy() + 1,
+                    "text": [None if n else str(v) for v, n in zip(values, is_number)],
+                    "number": [float(v) if n else None for v, n in zip(values, is_number)],
+                }
+            )
+        )
+    return pd.concat(frames, ignore_index=True)
 
 
-def matrices(source: Source, book: dict[str, pd.DataFrame]):
-    """(シート, 分類の名前, 行部門, 列部門, セル) を表ごとに返す。"""
-    if "分類表" in book:  # 1999 年以前の延長表
-        rows, cols, data = parse_matrix(book["Sheet1"])
-        yield "Sheet1", source.classification, rows, cols, data
-        for name, row_map, col_map in classification_levels(book["分類表"]):
-            yield "Sheet1", name, *aggregate(rows, cols, data, row_map, col_map)
-        return
-    for sheet, frame in list(book.items())[:1] if source.kind == "extended" else book.items():
-        yield sheet, source.classification, *parse_matrix(frame)
-
-
-def extract(source: Source):
-    book = read_book(source)
-    for sheet, classification, rows, cols, data in matrices(source, book):
-        if source.kind == "extended":
-            year, price = source.year, source.price
-        elif source.kind == "national":
-            year, price = int(source.series), "nominal"
-        else:
-            year, price = sheet_year(sheet, source.series)
-        unit = find_unit(book[sheet].iloc[:12].map(norm))
-        scale = UNITS.get(unit or "百万円")
-        if scale is None:
-            raise SystemExit(f"{source.url} {sheet}: 単位 {unit} を想定していない")
-        sectors = sector_count(rows, cols)
-        tid = table_id(source, classification, year, price, sectors)
-        table = {
-            "table_id": tid,
-            "kind": source.kind,
-            "series": "" if source.kind == "national" else source.series,
-            "year": year,
-            "price": price,
-            "real_base_year": source.series.split("-")[-1] if price == "real" else "",  # 延長表の実質は基準年の価格
-            "price_basis": source.price_basis,
-            "classification": classification,
-            "sector_count": sectors or "",
-            "source_unit": unit or "",
-            "source_url": source.url,
-            "source_sheet": sheet,
-        }
-        sector_rows = [
-            {"table_id": tid, "side": side, "position": k, "code": code, "name": name}
-            for side, seq in (("row", rows), ("col", cols))
-            for k, (code, name) in enumerate(seq, 1)
-        ]
-        cells = [{"table_id": tid, "row_code": r, "col_code": c, "value": round(v * scale, 6)} for r, c, v in data]
-        yield table, sector_rows, cells
-
-
-def write_csv(path: Path, fields: list[str], rows) -> int:
-    n = 0
-    with replacing(path) as partial, partial.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fields)
-        writer.writeheader()
-        for row in rows:
-            writer.writerow(row)
-            n += 1
-    return n
+def write_parquet(path: Path, frame: pd.DataFrame) -> None:
+    with replacing(path) as partial:
+        duckdb.from_df(frame).write_parquet(str(partial), compression="zstd")
 
 
 def download_japan(output_dir: Path = OUTPUT_DIR) -> None:
-    tables, sectors, cells = [], [], []
-    for source in SOURCES:
-        logger.info("%s %s %s %s", source.kind, source.series, source.price_basis, source.classification)
-        for table, s, c in extract(source):
-            if any(t["table_id"] == table["table_id"] for t in tables):
-                raise SystemExit(f"table_id が重なった: {table['table_id']}")
-            tables.append(table)
-            sectors += s
-            cells += c
     output_dir.mkdir(parents=True, exist_ok=True)
-    write_csv(output_dir / "tables.csv", list(tables[0]), tables)
-    write_csv(output_dir / "sectors.csv", list(sectors[0]), sectors)
-    n = write_csv(output_dir / "transactions.csv", list(cells[0]), cells)
-    logger.info("  tables: %d, sectors: %d, transactions: %d", len(tables), len(sectors), n)
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    previous = previous_records(output_dir / "source_file.parquet")
+    records, sources, sheets = {}, [], {}
+    for source in SOURCES:
+        url = fetch_url(source)
+        logger.info("%s %s %s %s", source.kind, source.series, source.price_basis, source.classification)
+        record = fetch_file(url, CACHE_DIR / source.file_id, previous=previous.get(url), user_agent=USER_AGENT, timeout=300)
+        records[url] = record
+        sources.append({**asdict(source), "source_sha256": record["sha256"]})
+        if record["sha256"] not in sheets:
+            sheets[record["sha256"]] = cells(CACHE_DIR / source.file_id, record["sha256"])
+    source_file = pd.DataFrame([{"page_url": None, **r} for r in records.values()])
+    source_file["retrieved_at"] = pd.to_datetime(source_file["retrieved_at"], utc=True)
+    write_parquet(output_dir / "source_file.parquet", source_file)
+    write_parquet(output_dir / "sources.parquet", pd.DataFrame(sources))
+    all_cells = pd.concat(sheets.values(), ignore_index=True)
+    write_parquet(output_dir / "cells.parquet", all_cells)
+    logger.info("  files: %d, sources: %d, cells: %d", len(records), len(sources), len(all_cells))

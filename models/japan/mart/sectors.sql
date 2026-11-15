@@ -30,6 +30,9 @@ select
         when source.side = 'col' then 'final_demand'
         else 'value_added'
     end as sector_type,
-    source.name like '%計' or source.name like '%合計' as is_total
+    source.name like '%計' or source.name like '%合計' as is_total,
+    source.source_sha256,
+    source.source_sheet,
+    source.source_row
 from source
 join marks using (table_id, side)
