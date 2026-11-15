@@ -14,7 +14,8 @@ select
     m.output_multiplier,
     m.domestic_output_multiplier,
     m.value_added_multiplier,
-    m.domestic_value_added_multiplier
+    m.domestic_value_added_multiplier,
+    m.source_sha256
 from {{ ref('stg_oecd_multipliers') }} as m
 left join {{ ref('stg_oecd_areas') }} as a on a.code = m.area
 left join {{ ref('stg_oecd_industries') }} as i on i.code = m.industry

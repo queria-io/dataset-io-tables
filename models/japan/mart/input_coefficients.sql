@@ -1,7 +1,7 @@
-{# 投入係数。1 行が 1 表の (行部門, 列部門) 1 つ。pipelines/derive.py が計算する（stg_japan_derived）。 #}
+{# 投入係数。1 行が 1 表の (行部門, 列部門) 1 つ。pipelines/derive.py が計算する（raw_input_coefficients）。 #}
 
 with source as (
-    select * from {{ ref('stg_japan_derived') }} where part = 'coefficient'
+    select * from {{ ref('stg_input_coefficients') }}
 )
 
 select

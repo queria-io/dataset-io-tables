@@ -14,17 +14,27 @@
 - 部門ごとの値: 国内生産額・輸入係数・粗付加価値率と、open の逆行列から求めた生産誘発係数
   (列和) と粗付加価値誘発係数 (粗付加価値率 × 逆行列 の列和)
 
-dbt の Python モデル (mart の input_coefficients・leontief_inverse・sector_multipliers) が、
-stg_tables・stg_sectors・stg_transactions を渡して呼ぶ。
+入力: data/japan/{tables,sectors,transactions}.csv
+出力: data/japan/{input_coefficients,leontief_inverse,sector_multipliers}.csv
 """
 
+import csv
 import logging
 from collections import defaultdict
+from pathlib import Path
 
 import numpy as np
-import pandas as pd
+
+from shared.fetch import replacing
 
 logger = logging.getLogger("pipelines")
+
+DIR = Path("data/japan")
+
+
+def read(name: str) -> list[dict]:
+    with (DIR / f"{name}.csv").open(encoding="utf-8") as f:
+        return list(csv.DictReader(f))
 
 
 def one(names: dict[str, str], *candidates: str) -> str:
@@ -61,7 +71,7 @@ def derive_table(table: dict, sectors: list[dict], cells: dict[tuple[str, str], 
     positions = {s["code"]: int(s["position"]) for s in rows}
     va_rows = [s["code"] for s in rows if positions[one(row_names, "内生部門計")] < int(s["position"]) < positions[va_total]]
 
-    get = lambda r, c: cells.get((r, c), 0.0)
+    get = lambda r, c: cells.get((r, c), 0.0)  # noqa: E731
     x = np.array([get(output_row, c) for c in endo])
     # 行の国内生産額 (列の計) と列の国内生産額 (行の計) が合わない表は係数を計算しない。
     # 1980 年基準の延長表 (1982〜1985 年) は、出典の事業用火力発電などの列に粗付加価値と国内生産額が無い
@@ -111,17 +121,26 @@ def derive_table(table: dict, sectors: list[dict], cells: dict[tuple[str, str], 
     return coefficients, inverse, multipliers
 
 
-def derive_all(tables: pd.DataFrame, sectors: pd.DataFrame, transactions: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """生産者価格評価の正方の表ごとに、(投入係数, 逆行列係数, 部門ごとの値) を計算する。"""
-    targets = [t for t in tables.astype(object).where(tables.notna(), None).to_dict("records") if t["sector_count"] and t["price_basis"] == "producer"]
-    by_table = defaultdict(list)
-    for s in sectors[["table_id", "side", "position", "code", "name"]].to_dict("records"):
-        by_table[s["table_id"]].append(s)
+def write_csv(path: Path, rows: list[dict]) -> None:
+    with replacing(path) as partial, partial.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def derive_japan() -> None:
+    tables = [t for t in read("tables") if t["sector_count"] and t["price_basis"] == "producer"]
+    sectors = defaultdict(list)
+    for s in read("sectors"):
+        sectors[s["table_id"]].append(s)
     cells = defaultdict(dict)
-    for table_id, row_code, col_code, value in transactions[["table_id", "row_code", "col_code", "value"]].itertuples(index=False):
-        cells[table_id][(row_code, col_code)] = float(value)
+    for c in read("transactions"):
+        cells[c["table_id"]][(c["row_code"], c["col_code"])] = float(c["value"])
+
     out = ([], [], [])
-    for table in targets:
-        for rows, more in zip(out, derive_table(table, by_table[table["table_id"]], cells[table["table_id"]])):
+    for table in tables:
+        for rows, more in zip(out, derive_table(table, sectors[table["table_id"]], cells[table["table_id"]])):
             rows += more
-    return tuple(pd.DataFrame(rows) for rows in out)
+    for name, rows in zip(("input_coefficients", "leontief_inverse", "sector_multipliers"), out):
+        write_csv(DIR / f"{name}.csv", rows)
+        logger.info("  %s: %d", name, len(rows))

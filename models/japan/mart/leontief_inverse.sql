@@ -1,7 +1,7 @@
-{# 逆行列係数。1 行が 1 表の (行部門, 列部門) 1 つ。pipelines/derive.py が計算する（stg_japan_derived）。 #}
+{# 逆行列係数。1 行が 1 表の (行部門, 列部門) 1 つ。pipelines/derive.py が計算する（raw_leontief_inverse）。 #}
 
 with source as (
-    select * from {{ ref('stg_japan_derived') }} where part = 'inverse'
+    select * from {{ ref('stg_leontief_inverse') }}
 )
 
 select
