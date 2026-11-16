@@ -1,5 +1,5 @@
 select
-    cast(r.year as integer) as year,
+    cast(year as integer) as year,
     area,
     industry,
     output,
@@ -9,4 +9,4 @@ select
     domestic_output_multiplier,
     value_added_multiplier,
     domestic_value_added_multiplier
-from {{ ref('raw_oecd_multipliers') }} as r
+from {{ ref('raw_oecd_multipliers') }}

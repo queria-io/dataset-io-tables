@@ -1,9 +1,9 @@
 select
-    cast(r.year as integer) as year,
+    cast(year as integer) as year,
     -- TLS・VA の行は国を持たない。主キーに NULL を置けないので、SDMX の「該当なし」の符号 _Z を入れる
     coalesce(nullif(row_area, ''), '_Z') as row_area,
     row_item,
     coalesce(nullif(col_area, ''), '_Z') as col_area,
     col_item,
     value
-from {{ ref('raw_oecd_transactions') }} as r
+from {{ ref('raw_oecd_transactions') }}
