@@ -1,5 +1,6 @@
-schema: oecd
-name: final_demand_items
+---
+$schema: https://queria.io/schemas/table/v1.json
+table: oecd.final_demand_items
 title: ICIO の最終需要の項目
 description: |-
   transactions の col_item に入る最終需要の 6 項目です。
@@ -10,3 +11,4 @@ fields:
     description: HFCE・NPISH・GGFC・GFCF・INVNT・DPABR
   - name: name
     title: 項目名
+---

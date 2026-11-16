@@ -1,5 +1,6 @@
-schema: japan
-name: transactions
+---
+$schema: https://queria.io/schemas/table/v1.json
+table: japan.transactions
 title: 取引基本表
 description: |-
   取引基本表の値です。1 行が 1 表の行部門と列部門の組み合わせ 1 つです。
@@ -22,7 +23,7 @@ fields:
   - name: value
     title: 金額
     description: 百万円
-    annotations: { queria: { semantic: { role: measure, agg: sum } } }
+    semantic: {role: measure, agg: sum}
   - name: source_sha256
     title: 元のファイル
     description: 値を読んだファイルの sha256。source_file の sha256 を指す
@@ -32,3 +33,4 @@ fields:
   - name: source_row
     title: 元の行番号
     description: 値を読んだ Excel の行番号（1 始まり）。1999 年以前の延長表の統合分類は、内生部門の行が基本分類の複数の行の和なので NULL。最終需要・粗付加価値の行は元の行（内生部門の列は、その行の基本分類の列の和）
+---

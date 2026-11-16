@@ -1,5 +1,6 @@
-schema: oecd
-name: transactions
+---
+$schema: https://queria.io/schemas/table/v1.json
+table: oecd.transactions
 title: ICIO の取引額
 description: |-
   OECD ICIO の取引額です。1 行が 1 年の (行, 列) 1 つです。単位は百万米ドル（名目）です。
@@ -15,21 +16,22 @@ fields:
   - name: row_area
     title: 行の国・地域
     description: 供給する側。TLS・VA の行は `_Z`（該当なし）
-    annotations: { queria: { semantic: { role: dimension } } }
+    semantic: {role: dimension}
   - name: row_item
     title: 行の産業・項目
     description: 産業コード、または TLS（純生産物税）・VA（付加価値）
   - name: col_area
     title: 列の国・地域
     description: 使う側（中間投入する産業か最終需要）の国・地域
-    annotations: { queria: { semantic: { role: dimension } } }
+    semantic: {role: dimension}
   - name: col_item
     title: 列の産業・最終需要項目
     description: 産業コード、または最終需要の項目（HFCE など）
   - name: value
     title: 取引額
     description: 百万米ドル（名目）
-    annotations: { queria: { semantic: { role: measure, agg: sum } } }
+    semantic: {role: measure, agg: sum}
   - name: source_sha256
     title: 元のファイル
     description: 値を読んだ ICIO の zip の sha256。source_file の sha256 を指す
+---

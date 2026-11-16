@@ -1,5 +1,6 @@
-schema: oecd
-name: areas
+---
+$schema: https://queria.io/schemas/table/v1.json
+table: oecd.areas
 title: ICIO の国・地域
 description: |-
   OECD ICIO が対象にする 80 の国・地域と、それ以外をまとめた Rest of the World（ROW）です。名前は出典の英語のままです。
@@ -13,3 +14,4 @@ fields:
   - name: source_sha256
     title: 元のファイル
     description: 読んだ ReadMe（ReadMe_ICIO_small.xlsx）の sha256。source_file の sha256 を指す
+---

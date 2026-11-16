@@ -1,5 +1,6 @@
-schema: japan
-name: input_coefficients
+---
+$schema: https://queria.io/schemas/table/v1.json
+table: japan.input_coefficients
 title: 投入係数
 description: |-
   列部門が 1 単位を生産するのに行部門から投入する量（取引額 ÷ 列部門の国内生産額）です。1 行が 1 表の行部門と列部門の組み合わせ 1 つです。
@@ -20,3 +21,4 @@ fields:
     title: 列部門名
   - name: value
     title: 投入係数
+---

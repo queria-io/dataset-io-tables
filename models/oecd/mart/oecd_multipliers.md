@@ -1,5 +1,6 @@
-schema: oecd
-name: multipliers
+---
+$schema: https://queria.io/schemas/table/v1.json
+table: oecd.multipliers
 title: 国×産業ごとの誘発係数
 description: |-
   国×産業ごとの産出額・付加価値と、全世界の逆行列 (I - A)^-1 から計算した誘発係数です。1 行が 1 年の 1 国の 1 産業です。
@@ -13,22 +14,22 @@ fields:
     title: 対象年
   - name: area
     title: 国・地域コード
-    annotations: { queria: { semantic: { role: dimension } } }
+    semantic: {role: dimension}
   - name: area_name
     title: 国・地域名
   - name: industry
     title: 産業コード
-    annotations: { queria: { semantic: { role: dimension } } }
+    semantic: {role: dimension}
   - name: industry_name
     title: 産業名
   - name: output
     title: 産出額
     description: 百万米ドル（名目、基本価格）
-    annotations: { queria: { semantic: { role: measure, agg: sum } } }
+    semantic: {role: measure, agg: sum}
   - name: value_added
     title: 付加価値
     description: 百万米ドル（名目、基本価格）
-    annotations: { queria: { semantic: { role: measure, agg: sum } } }
+    semantic: {role: measure, agg: sum}
   - name: value_added_ratio
     title: 付加価値率
     description: 付加価値 ÷ 産出額
@@ -47,3 +48,4 @@ fields:
   - name: source_sha256
     title: 元のファイル
     description: 値を読んだ ICIO の zip の sha256。source_file の sha256 を指す
+---
