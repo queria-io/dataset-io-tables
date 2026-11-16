@@ -5,7 +5,5 @@ select
     row_item,
     coalesce(nullif(col_area, ''), '_Z') as col_area,
     col_item,
-    value,
-    t.source_sha256
+    value
 from {{ ref('raw_oecd_transactions') }} as r
-join {{ ref('stg_oecd_tables') }} as t on t.year = r.year
