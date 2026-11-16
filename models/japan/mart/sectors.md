@@ -1,5 +1,6 @@
-schema: japan
-name: sectors
+---
+$schema: https://queria.io/schemas/table/v1.json
+table: japan.sectors
 title: 部門
 description: |-
   表ごとの行部門と列部門です。1 行が 1 表の行または列の部門 1 つです。
@@ -13,7 +14,7 @@ fields:
   - name: side
     title: 行・列
     description: row（行部門）、col（列部門）
-    annotations: { queria: { semantic: { role: dimension } } }
+    semantic: {role: dimension}
   - name: position
     title: 表の中の順番
   - name: code
@@ -23,7 +24,7 @@ fields:
   - name: sector_type
     title: 部門の区分
     description: intermediate（内生部門）、intermediate_total（内生部門計）、final_demand（最終需要の列）、value_added（粗付加価値の行）、output（国内生産額）、reference（国内総生産などの参考の行・列）
-    annotations: { queria: { semantic: { role: dimension } } }
+    semantic: {role: dimension}
   - name: is_total
     title: 計の部門
     description: 名前が「計」「合計」で終わる部門。合計するときは除きます
@@ -36,3 +37,4 @@ fields:
   - name: source_row
     title: 元の行番号
     description: 部門名を読んだ Excel の行番号（1 始まり）。列部門は見出しの行。1999 年以前の延長表の統合分類の内生部門の行部門は、基本分類の複数の行をまとめた部門なので NULL
+---

@@ -1,4 +1,6 @@
-schema: japan
-name: raw_sectors
+---
+$schema: https://queria.io/schemas/table/v1.json
+table: japan.raw_sectors
 description: pipelines が書いた data/japan/sectors.csv を、列と値を変えずに読んだもの（表ごとの行部門と列部門）
-annotations: { queria: { published: false } }
+published: false
+---

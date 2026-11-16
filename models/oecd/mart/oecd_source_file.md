@@ -1,5 +1,6 @@
-schema: oecd
-name: source_file
+---
+$schema: https://queria.io/schemas/table/v1.json
+table: oecd.source_file
 title: 元のファイル
 description: |-
   oecd スキーマのテーブルを作った元のファイル（ICIO の zip と ReadMe）の一覧です。1 行が 1 つのファイルで、取得した URL・掲載ページ・取得日時と、ファイルの sha256 を持ちます。
@@ -33,3 +34,4 @@ fields:
     description: 取得したときの応答の Last-Modified ヘッダー。無ければ NULL
   - name: file
     title: ファイル名
+---

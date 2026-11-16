@@ -1,5 +1,6 @@
-schema: japan
-name: sector_multipliers
+---
+$schema: https://queria.io/schemas/table/v1.json
+table: japan.sector_multipliers
 title: 部門ごとの誘発係数
 description: |-
   部門ごとの国内生産額・輸入係数・粗付加価値率と、逆行列係数（[I-(I-M)A]^-1 型）から計算した誘発係数です。1 行が 1 表の 1 部門です。
@@ -14,7 +15,7 @@ fields:
   - name: output
     title: 国内生産額
     description: 百万円
-    annotations: { queria: { semantic: { role: measure, agg: sum } } }
+    semantic: {role: measure, agg: sum}
   - name: import_coefficient
     title: 輸入係数
     description: 輸入計 ÷ 国内需要（内生部門計 + 国内最終需要計）
@@ -27,3 +28,4 @@ fields:
   - name: value_added_multiplier
     title: 粗付加価値誘発係数
     description: この部門の最終需要が 1 単位増えたときの全部門の粗付加価値の増加
+---

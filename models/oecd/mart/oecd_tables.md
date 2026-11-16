@@ -1,5 +1,6 @@
-schema: oecd
-name: tables
+---
+$schema: https://queria.io/schemas/table/v1.json
+table: oecd.tables
 title: ICIO の年の一覧
 description: |-
   収録している OECD ICIO の年の一覧です。1 行が 1 年の表です。
@@ -17,3 +18,4 @@ fields:
   - name: source_sha256
     title: 元のファイル
     description: 値を読んだ ICIO の zip の sha256。source_file の sha256 を指す
+---

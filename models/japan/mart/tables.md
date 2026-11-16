@@ -1,5 +1,6 @@
-schema: japan
-name: tables
+---
+$schema: https://queria.io/schemas/table/v1.json
+table: japan.tables
 title: 産業連関表の一覧
 description: |-
   収録している表の一覧です。1 行が 1 表です。ほかのテーブルは table_id でこの表を指します。
@@ -16,24 +17,24 @@ fields:
   - name: kind
     title: 表の種類
     description: national（産業連関表）、linked（接続産業連関表）、extended（延長産業連関表）
-    annotations: { queria: { semantic: { role: dimension } } }
+    semantic: {role: dimension}
   - name: series
     title: 接続表の時点・延長表の基準年
     description: 接続表は対象にする 3 時点（2005-2011-2015 など）、延長表は基準にした産業連関表の年（2015 など）。産業連関表は NULL
-    annotations: { queria: { semantic: { role: dimension } } }
+    semantic: {role: dimension}
   - name: year
     title: 対象年
   - name: price
     title: 名目・実質
     description: nominal（名目）、real（実質）
-    annotations: { queria: { semantic: { role: dimension } } }
+    semantic: {role: dimension}
   - name: real_base_year
     title: 実質の基準年
     description: 実質の表の価格の年。名目の表は NULL
   - name: price_basis
     title: 価格の評価
     description: producer（生産者価格評価）、purchaser（購入者価格評価）
-    annotations: { queria: { semantic: { role: dimension } } }
+    semantic: {role: dimension}
   - name: classification
     title: 部門分類
     description: 出典の表の分類名（統合大分類（37部門）など）
@@ -52,3 +53,4 @@ fields:
   - name: source_sha256
     title: 元のファイル
     description: 表を読んだファイルの sha256。source_file の sha256 を指す
+---

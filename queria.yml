@@ -1,6 +1,4 @@
-# この dataset.yml は fdl commit が読む（FDL の dataset.json を YAML で書いたもの）。
-# 表の説明は models/ の *.table.yml に書く。表と列の型・NULL・行数は fdl commit がカタログから埋める。
-# Queria だけの項目（テーマ・カバー・列の意味）は annotations.queria に書く。
+$schema: https://queria.io/schemas/dataset/v1.json
 name: io_tables
 title: 産業連関表
 description: |-
@@ -25,7 +23,6 @@ keywords:
   - グローバルバリューチェーン
 homepage: https://github.com/queria-io/dataset-io-tables
 language: ja
-
 licenses:
   - JP-GOV-STD-2.0
   - id: OECD-TERMS
@@ -60,28 +57,25 @@ contributors:
 
 spatial_coverage: [JP]
 update_frequency: irregular
-
 schemas:
   - name: japan
     title: 日本の産業連関表
   - name: oecd
     title: OECD 国際産業連関表（ICIO）
 
-annotations:
-  queria:
-    themes: [economy]
-    cover: 🔁
-    ai_context:
-      instructions: |
-        経済波及効果（ある部門の需要が増えたとき各部門の生産がいくら増えるか）を計算するときに使う。
-        まず japan.tables で表を選ぶ（kind は national（全国表）、linked（接続表）、extended（毎年の延長表）、sector_count が部門数、
-        price_basis は producer（生産者価格評価）を使う）。部門のコードは表ごとに違うので、japan.sectors か
-        各テーブルの row_name・col_name で名前を確認してから絞る。
-        波及効果は leontief_inverse の open 列（[I-(I-M)A]^-1、輸入を考慮した型）と最終需要の増加額を
-        col_code で結合して row_code ごとに合計する。金額の単位はすべて百万円。
-        異なる年を比べるときは、同じ部門分類の接続表（kind = linked、同じ series）か、同じ基準年の延長表（kind = extended、同じ series）を使う。
-        5 年ごとの表の間の年や直近の年の構造を見るときは延長表（1973〜2022 年）が使える。
-        国をまたぐ波及（輸出入を通じた生産・付加価値の誘発）は oecd スキーマを使う。oecd.multipliers に国×産業ごとの
-        誘発係数（全世界と国内）、oecd.transactions に取引額（百万米ドル、行が供給する国×産業、列が使う国×産業か最終需要）がある。
-        国は ISO 3 文字コード（日本は JPN）、産業は oecd.industries のコード。
-        oecd.transactions の TLS・VA の行は row_area が _Z なので、国際取引を row_area <> col_area で集計するときは row_area <> '_Z' も付ける。
+themes: [economy]
+cover: 🔁
+ai_context:
+  instructions: |
+    経済波及効果（ある部門の需要が増えたとき各部門の生産がいくら増えるか）を計算するときに使う。
+    まず japan.tables で表を選ぶ（kind は national（全国表）、linked（接続表）、extended（毎年の延長表）、sector_count が部門数、
+    price_basis は producer（生産者価格評価）を使う）。部門のコードは表ごとに違うので、japan.sectors か
+    各テーブルの row_name・col_name で名前を確認してから絞る。
+    波及効果は leontief_inverse の open 列（[I-(I-M)A]^-1、輸入を考慮した型）と最終需要の増加額を
+    col_code で結合して row_code ごとに合計する。金額の単位はすべて百万円。
+    異なる年を比べるときは、同じ部門分類の接続表（kind = linked、同じ series）か、同じ基準年の延長表（kind = extended、同じ series）を使う。
+    5 年ごとの表の間の年や直近の年の構造を見るときは延長表（1973〜2022 年）が使える。
+    国をまたぐ波及（輸出入を通じた生産・付加価値の誘発）は oecd スキーマを使う。oecd.multipliers に国×産業ごとの
+    誘発係数（全世界と国内）、oecd.transactions に取引額（百万米ドル、行が供給する国×産業、列が使う国×産業か最終需要）がある。
+    国は ISO 3 文字コード（日本は JPN）、産業は oecd.industries のコード。
+    oecd.transactions の TLS・VA の行は row_area が _Z なので、国際取引を row_area <> col_area で集計するときは row_area <> '_Z' も付ける。

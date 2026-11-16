@@ -1,5 +1,6 @@
-schema: japan
-name: source_file
+---
+$schema: https://queria.io/schemas/table/v1.json
+table: japan.source_file
 title: 元のファイル
 description: |-
   tables・sectors・transactions を作った元のファイル（産業連関表の Excel）の一覧です。1 行が 1 つのファイルで、取得した URL・取得日時と、ファイルの sha256 を持ちます。
@@ -28,3 +29,4 @@ fields:
   - name: last_modified
     title: Last-Modified
     description: 取得したときの応答の Last-Modified ヘッダー。無ければ NULL
+---

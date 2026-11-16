@@ -1,4 +1,6 @@
-schema: oecd
-name: raw_oecd_source_file
+---
+$schema: https://queria.io/schemas/table/v1.json
+table: oecd.raw_oecd_source_file
 description: ICIO のファイルを取得した記録を、取得のときに書いたまま読んだもの
-annotations: { queria: { published: false } }
+published: false
+---

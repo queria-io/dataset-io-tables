@@ -1,5 +1,6 @@
-schema: japan
-name: leontief_inverse
+---
+$schema: https://queria.io/schemas/table/v1.json
+table: japan.leontief_inverse
 title: 逆行列係数
 description: |-
   列部門の最終需要が 1 単位増えたときに、行部門の生産が直接・間接に何単位増えるかを表す係数です。1 行が 1 表の行部門と列部門の組み合わせ 1 つです。
@@ -24,3 +25,4 @@ fields:
     title: 逆行列係数（[I-(I-M)A]^-1 型）
   - name: closed
     title: 逆行列係数（(I-A)^-1 型）
+---
