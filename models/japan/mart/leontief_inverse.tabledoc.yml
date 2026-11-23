@@ -1,6 +1,4 @@
----
-$schema: https://queria.io/schemas/table/v1.json
-table: japan.leontief_inverse
+$schema: https://tabledoc.queria.io/schemas/table/v1.json
 title: 逆行列係数
 description: |-
   列部門の最終需要が 1 単位増えたときに、行部門の生産が直接・間接に何単位増えるかを表す係数です。1 行が 1 表の行部門と列部門の組み合わせ 1 つです。
@@ -10,7 +8,7 @@ description: |-
   - 公表されている逆行列係数表と、1995〜2015 年の表は小数点以下 6 桁まで一致します。2020 年表は出典の取引額が 10 億円単位に丸められているため、最大で 0.002 ほど違います
   - 生産者価格評価の正方の表（sector_count がある表）だけです
 primary_key: [table_id, row_code, col_code]
-fields:
+columns:
   - name: table_id
     title: 表 ID
   - name: row_code
@@ -25,4 +23,3 @@ fields:
     title: 逆行列係数（[I-(I-M)A]^-1 型）
   - name: closed
     title: 逆行列係数（(I-A)^-1 型）
----
