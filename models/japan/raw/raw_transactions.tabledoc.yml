@@ -1,3 +1,3 @@
 $schema: https://tabledoc.queria.io/schemas/table/v1.json
 description: pipelines が書いた data/japan/transactions.csv を、列と値を変えずに読んだもの（取引基本表のセル）
-listed: false
+hidden: true
