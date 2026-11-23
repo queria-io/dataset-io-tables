@@ -7,6 +7,7 @@ description: |-
   OECD の国際産業連関表（ICIO、81 の国・地域 × 50 産業、1995 年〜2022 年）の取引額と、国×産業ごとの誘発係数も収録しています。
 
   出典：総務省ほか「産業連関表」「接続産業連関表」、経済産業省「延長産業連関表」、OECD (2025), Inter-Country Input-Output Database, http://oe.cd/icio。Queria が加工したものです。
+image: cover.png
 topics:
   - 産業連関表
   - 産業連関分析
