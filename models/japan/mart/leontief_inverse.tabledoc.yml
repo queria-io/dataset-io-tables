@@ -15,10 +15,12 @@ columns:
     title: 行部門コード
   - name: row_name
     title: 行部門名
+    dimension: categorical
   - name: col_code
     title: 列部門コード
   - name: col_name
     title: 列部門名
+    dimension: categorical
   - name: open
     title: 逆行列係数（[I-(I-M)A]^-1 型）
   - name: closed

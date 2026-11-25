@@ -10,6 +10,7 @@ columns:
     title: 部門コード
   - name: name
     title: 部門名
+    dimension: categorical
   - name: output
     title: 国内生産額
     description: 百万円

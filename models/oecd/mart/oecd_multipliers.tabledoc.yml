@@ -12,7 +12,6 @@ columns:
     title: 対象年
   - name: area
     title: 国・地域コード
-    dimension: categorical
   - name: area_name
     title: 国・地域名
   - name: industry
@@ -20,6 +19,7 @@ columns:
     dimension: categorical
   - name: industry_name
     title: 産業名
+    dimension: categorical
   - name: output
     title: 産出額
     description: 百万米ドル（名目、基本価格）
