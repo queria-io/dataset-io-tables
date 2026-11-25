@@ -14,10 +14,12 @@ columns:
     title: 行部門コード
   - name: row_name
     title: 行部門名
+    dimension: categorical
   - name: col_code
     title: 列部門コード
   - name: col_name
     title: 列部門名
+    dimension: categorical
   - name: value
     title: 金額
     description: 百万円

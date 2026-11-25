@@ -19,6 +19,7 @@ columns:
     title: 部門コード
   - name: name
     title: 部門名
+    dimension: categorical
   - name: sector_type
     title: 部門の区分
     description: intermediate（内生部門）、intermediate_total（内生部門計）、final_demand（最終需要の列）、value_added（粗付加価値の行）、output（国内生産額）、reference（国内総生産などの参考の行・列）
