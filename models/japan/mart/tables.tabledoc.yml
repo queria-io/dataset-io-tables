@@ -19,7 +19,6 @@ columns:
   - name: series
     title: 接続表の時点・延長表の基準年
     description: 接続表は対象にする 3 時点（2005-2011-2015 など）、延長表は基準にした産業連関表の年（2015 など）。産業連関表は NULL
-    dimension: categorical
   - name: year
     title: 対象年
   - name: price

@@ -12,7 +12,6 @@ columns:
     title: 対象年
   - name: area
     title: 国・地域コード
-    dimension: categorical
   - name: area_name
     title: 国・地域名
   - name: industry

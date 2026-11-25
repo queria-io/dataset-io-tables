@@ -14,14 +14,12 @@ columns:
   - name: row_area
     title: 行の国・地域
     description: 供給する側。TLS・VA の行は `_Z`（該当なし）
-    dimension: categorical
   - name: row_item
     title: 行の産業・項目
     description: 産業コード、または TLS（純生産物税）・VA（付加価値）
   - name: col_area
     title: 列の国・地域
     description: 使う側（中間投入する産業か最終需要）の国・地域
-    dimension: categorical
   - name: col_item
     title: 列の産業・最終需要項目
     description: 産業コード、または最終需要の項目（HFCE など）
